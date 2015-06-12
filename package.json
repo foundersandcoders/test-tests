@@ -1,0 +1,15 @@
+{
+  "name": "tests-nuclear",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "w-one": "watchify app/app_one.js -o app/bundle_one.js -v",
+    "w-two": "watchify app/app_two.js -o app/bundle_two.js -v"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "watchify": "^3.2.2"
+  }
+}
