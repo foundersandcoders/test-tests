@@ -9,7 +9,7 @@
     "w-index": "watchify assets/js/index.js -o assets/public/bundle_index.js -v",
     "w-one": "watchify assets/js/app-one/todo-app.js -o assets/public/bundle_one.js -v",
     "w-two": "watchify assets/js/app_two.js -o assets/public/bundle_two.js -v",
-    "phantom": "phantomjs phantom/test.js",
+    "phantom": "phantomjs test/phantom/test.js",
     "jsdom": "nodemon test/jsdom/test.js",
     "qUnit": "http-server test/qUnit/test.html"
   },
