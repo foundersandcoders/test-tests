@@ -1,1546 +1,19 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-"use strict";
-
-var nuclear  = require("../nuclear.js");
-var TodoItem = require("./todo-item.js");
-var utils    = require("./utils");
-
-function TodoApp (opts) {
-
-	opts = opts || {};
-
-	return nuclear.observS({
-		route: nuclear.observ(""),
-		todos: nuclear.observV(opts.todos || {}, TodoItem),
-		field: nuclear.observ(""),
-		channels: {
-			add: add,
-			destroy: destroy
-		}
-	})
-}
-
-function add (state) {
-
-	var that = this;
-
-	if(that.value.trim() === ""){
-		return;
-	}
-
-	var todo = TodoItem({
-		title: that.value.trim()
-	});
-
-	state.todos.put(todo.id(), todo);
-	state.field.set("");
-}
-
-function destroy (state, id) {
-
-	state.todos.delete(id);
-}
-
-TodoApp.render = function (state) {
-
-	var h = nuclear.h;
-
-	var route = nuclear.router(state);
-
-	return (
-		h("div", [
-			h("a", {
-				href: "/home",
-			}, "Home"),
-			h("h1", "Time"),
-			h("div.container", [
-				route("/*",         enterNewTask),
-				route("/",          all),
-				route("/active",    active),
-				route("/completed", completed),
-				route("/*",         footer)
-			])
-		])
-	);
-
-	function enterNewTask (state) {
-
-		return (
-			h("input.task", {
-				type: "text",
-				value: state.field(),
-				name: "newTodo",
-				placeholder: "Insert task",
-				onkeypress: function (evt) {
-
-					if (evt.keyCode == 13) {
-
-						state.channels.add.call(this, state);
-					}
-				}
-			})
-		);
-	}
-
-	function all (state) {
-
-		var todosList = utils.objToArr(state.todos);
-
-		var store  = [];
-
-		todosList.forEach(function (todo) {
-			store.push(TodoItem.render(todo, state.channels.destroy.bind(null, state)));
-		});
-
-		return (
-			h("ul", [
-				store
-			])
-		);
-	}
-
-	function active (state) {
-
-		// filter todos completed
-		var todosList = utils.objToArr(state.todos);
-
-		var storeActive = [];
-		var storeRender    = [];
-
-		todosList.forEach(function (obs) {
-			if(obs().completed === false) {
-				storeActive.push(obs);
-			}
-		});
-
-		storeActive.forEach(function (todo) {
-			storeRender.push(TodoItem.render(todo, state.channels.destroy.bind(null, state)))
-		});
-		
-		return (
-			h("ul", [
-				storeRender
-			])
-		);
-	}
-
-	function completed (state) {
-		
-		// filter todos completed
-		var todosList = utils.objToArr(state.todos);
-
-		var storeCompleted = [];
-		var storeRender    = [];
-
-		todosList.forEach(function (obs) {
-			if(obs().completed === true) {
-				storeCompleted.push(obs);
-			}
-		});
-
-		storeCompleted.forEach(function (todo) {
-			storeRender.push(TodoItem.render(todo, state.channels.destroy.bind(null, state)))
-		});
-
-		return (
-			h("ul", [
-				storeRender
-			])
-		);
-	}
-
-	function footer (state) {
-
-		return (
-			h("div.footer", [
-				h("button#all", {
-					onclick: function () {
-						location.hash = "";
-					}
-				}, "All"),
-				h("button#active", {
-					onclick: function () {
-						location.hash = "active";
-					}
-				}, "Active"),
-				h("button#completed", {
-					onclick: function () {
-						location.hash = "completed";
-					}
-				}, "Completed")
-			])
-		);
-	}
-};
-
-nuclear.app(document.body, TodoApp(), TodoApp.render);
-},{"../nuclear.js":4,"./todo-item.js":2,"./utils":3}],2:[function(require,module,exports){
-"use strict";
-
-var nuclear = require("../nuclear.js");
-var utils   = require("./utils");
-
-module.exports = TodoItem;
-
-function TodoItem (item) {
-
-	item = item || {};
-
-	return nuclear.observS({
-		id:        nuclear.observ(item.id        || (parseInt(Math.random() * 100000, 10))),
-		title:     nuclear.observ(item.title     || ""),
-		editing:   nuclear.observ(item.editing   || false),
-		completed: nuclear.observ(item.completed || false),
-		channels: {
-			toggle: toggle,
-			startEdit: startEdit,
-			finishEdit: finishEdit,
-			cancelEdit: cancelEdit
-		}
-	});
-}
-
-function toggle (state) {
-
-	console.log("toggle");
-
-	state.completed.set(!state.completed());
-}
-
-function startEdit (state) {
-
-	state.editing.set(true);
-}
-
-function finishEdit (state) {
-
-	if (state.editing() === false) {
-		return;
-	}
-
-	state.title.set(this.value);
-	state.channels.cancelEdit(state);
-}
-
-function cancelEdit (state) {
-
-	state.editing.set(false);
-}
-
-TodoItem.render = function (todo, parentHandles) {
-
-	var h = nuclear.h;
-
-	return (
-		h("li", [
-			h("input", {
-				type: "checkbox",
-				checked: todo.completed(),
-				onchange: todo.channels.toggle.bind(this, todo)
-			}),
-			h("p.item", {
-				style: {
-					"display": !todo.editing() ? "" : "none"
-				},
-				ondblclick: todo.channels.startEdit.bind(this, todo)
-			}, todo.title()),
-			h("input", {
-				style: {
-					"display": todo.editing() ? "" : "none"
-				},
-				focus: todo.editing ? utils.focusHook() : null,
-				value: todo.title(),
-				name: 'title',
-				onfocusout: todo.channels.cancelEdit.bind(this, todo),
-				onchange: todo.channels.cancelEdit.bind(this, todo),
-				onkeypress: function (evt) {
-
-					if (evt.keyCode == 13) {
-
-						todo.channels.finishEdit.call(this, todo);
-					}
-				}
-			}),
-			h("button.destroy", {
-				onclick: parentHandles.bind(null, todo.id())
-			}, "x")
-		])
-	);
-}
-},{"../nuclear.js":4,"./utils":3}],3:[function(require,module,exports){
-"use strict";
-
-var nextTick = require('next-tick');
-
-module.exports = {
-	focusHook: MutableFocusHook,
-	objToArr: objectToArray
-}
-
-/**
- *  
- *
- */
-function objectToArray(obj) {
-    return Object.keys(obj).map(function toItem(k) {
-        return obj[k];
-    });
-}
-
-function MutableFocusHook() {
-    if (!(this instanceof MutableFocusHook)) {
-        return new MutableFocusHook();
-    }
-}
-
-MutableFocusHook.prototype.hook = function hook(node, property) {
-    nextTick(function onTick() {
-        if (document.activeElement !== node) {
-            node.focus();
-        }
-    });
-};
-},{"next-tick":5}],4:[function(require,module,exports){
-"use strict";
-
-
-var nuclear = module.exports = {
-	app:           app,
-	router:        router,
-	diff:          require('virtual-dom/diff'),
-	patch:         require('virtual-dom/patch'),
-	createElement: require('virtual-dom/create-element'),
-	h:             require('virtual-dom/h'),
-	observ:        require('observ'),
-	observS:       require('observ-struct'),
-	observA:       require('observ-array'),
-	observV:       require('observ-varhash'),
-	request:       require('xhr')
-};
-
-
-function router (state) {
-
-	// browsers only
-	if (!window) return;
-
-	var loc     = window.location;
-	var win     = window;
-	var started = false;
-
-	function hash () {
-		return loc.href.split('#')[1] || '';
-	}
-
-	function parser (path) {
-		return path.split('/');
-	}
-
-	win.onhashchange = function (evt) {
-		console.log(hash());
-		state.route.set(hash());
-	}
-
-	function route (path, handler) {
-	
-		if (parser(path)[1] === "*") {
-			return handler(state);
-		}
-
-		if(hash() === parser(path)[1]) {
-			return handler(state);
-		}
-	}
-	
-	return route;
-}
-
-
-function app (elem, observ, render) {
-
-	var target = start(render, observ);
-	elem.appendChild(target.dom);
-	
-	return observ(target.update);
-}
-
-
-function start (render, observ) {
-	var virtualTree;
-	var resultsNode;
-	var target = {};
-
-	virtualTree = render(observ);
-	resultsNode = nuclear.createElement(virtualTree);
-	target.dom  = resultsNode;
-	target.update = function () {
-
-		var newResults = render(observ);
-		var patches    = nuclear.diff(virtualTree, newResults);
-		resultsNode    = nuclear.patch(resultsNode, patches);
-		virtualTree    = resultsNode;
-	};
-  
-	return target;
-}
-},{"observ":23,"observ-array":11,"observ-struct":18,"observ-varhash":21,"virtual-dom/create-element":24,"virtual-dom/diff":25,"virtual-dom/h":26,"virtual-dom/patch":34,"xhr":59}],5:[function(require,module,exports){
-(function (process){
-'use strict';
-
-var callable, byObserver;
-
-callable = function (fn) {
-	if (typeof fn !== 'function') throw new TypeError(fn + " is not a function");
-	return fn;
-};
-
-byObserver = function (Observer) {
-	var node = document.createTextNode(''), queue, i = 0;
-	new Observer(function () {
-		var data;
-		if (!queue) return;
-		data = queue;
-		queue = null;
-		if (typeof data === 'function') {
-			data();
-			return;
-		}
-		data.forEach(function (fn) { fn(); });
-	}).observe(node, { characterData: true });
-	return function (fn) {
-		callable(fn);
-		if (queue) {
-			if (typeof queue === 'function') queue = [queue, fn];
-			else queue.push(fn);
-			return;
-		}
-		queue = fn;
-		node.data = (i = ++i % 2);
-	};
-};
-
-module.exports = (function () {
-	// Node.js
-	if ((typeof process !== 'undefined') && process &&
-			(typeof process.nextTick === 'function')) {
-		return process.nextTick;
-	}
-
-	// MutationObserver=
-	if ((typeof document === 'object') && document) {
-		if (typeof MutationObserver === 'function') {
-			return byObserver(MutationObserver);
-		}
-		if (typeof WebKitMutationObserver === 'function') {
-			return byObserver(WebKitMutationObserver);
-		}
-	}
-
-	// W3C Draft
-	// http://dvcs.w3.org/hg/webperf/raw-file/tip/specs/setImmediate/Overview.html
-	if (typeof setImmediate === 'function') {
-		return function (cb) { setImmediate(callable(cb)); };
-	}
-
-	// Wide available standard
-	if (typeof setTimeout === 'function') {
-		return function (cb) { setTimeout(callable(cb), 0); };
-	}
-
-	return null;
-}());
-
-}).call(this,require('_process'))
-},{"_process":58}],6:[function(require,module,exports){
-var setNonEnumerable = require("./lib/set-non-enumerable.js");
-
-module.exports = addListener
-
-function addListener(observArray, observ) {
-    var list = observArray._list
-
-    return observ(function (value) {
-        var valueList =  observArray().slice()
-        var index = list.indexOf(observ)
-
-        // This code path should never hit. If this happens
-        // there's a bug in the cleanup code
-        if (index === -1) {
-            var message = "observ-array: Unremoved observ listener"
-            var err = new Error(message)
-            err.list = list
-            err.index = index
-            err.observ = observ
-            throw err
-        }
-
-        valueList.splice(index, 1, value)
-        setNonEnumerable(valueList, "_diff", [ [index, 1, value] ])
-
-        observArray._observSet(valueList)
-    })
-}
-
-},{"./lib/set-non-enumerable.js":12}],7:[function(require,module,exports){
-var addListener = require('./add-listener.js')
-
-module.exports = applyPatch
-
-function applyPatch (valueList, args) {
-    var obs = this
-    var valueArgs = args.map(unpack)
-
-    valueList.splice.apply(valueList, valueArgs)
-    obs._list.splice.apply(obs._list, args)
-
-    var extraRemoveListeners = args.slice(2).map(function (observ) {
-        return typeof observ === "function" ?
-            addListener(obs, observ) :
-            null
-    })
-
-    extraRemoveListeners.unshift(args[0], args[1])
-    var removedListeners = obs._removeListeners.splice
-        .apply(obs._removeListeners, extraRemoveListeners)
-
-    removedListeners.forEach(function (removeObservListener) {
-        if (removeObservListener) {
-            removeObservListener()
-        }
-    })
-
-    return valueArgs
-}
-
-function unpack(value, index){
-    if (index === 0 || index === 1) {
-        return value
-    }
-    return typeof value === "function" ? value() : value
-}
-
-},{"./add-listener.js":6}],8:[function(require,module,exports){
-var ObservArray = require("./index.js")
-
-var slice = Array.prototype.slice
-
-var ARRAY_METHODS = [
-    "concat", "slice", "every", "filter", "forEach", "indexOf",
-    "join", "lastIndexOf", "map", "reduce", "reduceRight",
-    "some", "toString", "toLocaleString"
-]
-
-var methods = ARRAY_METHODS.map(function (name) {
-    return [name, function () {
-        var res = this._list[name].apply(this._list, arguments)
-
-        if (res && Array.isArray(res)) {
-            res = ObservArray(res)
-        }
-
-        return res
-    }]
-})
-
-module.exports = ArrayMethods
-
-function ArrayMethods(obs) {
-    obs.push = observArrayPush
-    obs.pop = observArrayPop
-    obs.shift = observArrayShift
-    obs.unshift = observArrayUnshift
-    obs.reverse = require("./array-reverse.js")
-    obs.sort = require("./array-sort.js")
-
-    methods.forEach(function (tuple) {
-        obs[tuple[0]] = tuple[1]
-    })
-    return obs
-}
-
-
-
-function observArrayPush() {
-    var args = slice.call(arguments)
-    args.unshift(this._list.length, 0)
-    this.splice.apply(this, args)
-
-    return this._list.length
-}
-function observArrayPop() {
-    return this.splice(this._list.length - 1, 1)[0]
-}
-function observArrayShift() {
-    return this.splice(0, 1)[0]
-}
-function observArrayUnshift() {
-    var args = slice.call(arguments)
-    args.unshift(0, 0)
-    this.splice.apply(this, args)
-
-    return this._list.length
-}
-
-
-function notImplemented() {
-    throw new Error("Pull request welcome")
-}
-
-},{"./array-reverse.js":9,"./array-sort.js":10,"./index.js":11}],9:[function(require,module,exports){
-var applyPatch = require("./apply-patch.js")
-var setNonEnumerable = require('./lib/set-non-enumerable.js')
-
-module.exports = reverse
-
-function reverse() {
-    var obs = this
-    var changes = fakeDiff(obs._list.slice().reverse())
-    var valueList = obs().slice().reverse()
-
-    var valueChanges = changes.map(applyPatch.bind(obs, valueList))
-
-    setNonEnumerable(valueList, "_diff", valueChanges)
-
-    obs._observSet(valueList)
-    return changes
-}
-
-function fakeDiff(arr) {
-    var _diff
-    var len = arr.length
-
-    if(len % 2) {
-        var midPoint = (len -1) / 2
-        var a = [0, midPoint].concat(arr.slice(0, midPoint))
-        var b = [midPoint +1, midPoint].concat(arr.slice(midPoint +1, len))
-        var _diff = [a, b]
-    } else {
-        _diff = [ [0, len].concat(arr) ]
-    }
-
-    return _diff
-}
-
-},{"./apply-patch.js":7,"./lib/set-non-enumerable.js":12}],10:[function(require,module,exports){
-var applyPatch = require("./apply-patch.js")
-var setNonEnumerable = require("./lib/set-non-enumerable.js")
-
-module.exports = sort
-
-function sort(compare) {
-    var obs = this
-    var list = obs._list.slice()
-
-    var unpacked = unpack(list)
-
-    var sorted = unpacked
-            .map(function(it) { return it.val })
-            .sort(compare)
-
-    var packed = repack(sorted, unpacked)
-
-    //fake diff - for perf
-    //adiff on 10k items === ~3200ms
-    //fake on 10k items === ~110ms
-    var changes = [ [ 0, packed.length ].concat(packed) ]
-
-    var valueChanges = changes.map(applyPatch.bind(obs, sorted))
-
-    setNonEnumerable(sorted, "_diff", valueChanges)
-
-    obs._observSet(sorted)
-    return changes
-}
-
-function unpack(list) {
-    var unpacked = []
-    for(var i = 0; i < list.length; i++) {
-        unpacked.push({
-            val: ("function" == typeof list[i]) ? list[i]() : list[i],
-            obj: list[i]
-        })
-    }
-    return unpacked
-}
-
-function repack(sorted, unpacked) {
-    var packed = []
-
-    while(sorted.length) {
-        var s = sorted.shift()
-        var indx = indexOf(s, unpacked)
-        if(~indx) packed.push(unpacked.splice(indx, 1)[0].obj)
-    }
-
-    return packed
-}
-
-function indexOf(n, h) {
-    for(var i = 0; i < h.length; i++) {
-        if(n === h[i].val) return i
-    }
-    return -1
-}
-
-},{"./apply-patch.js":7,"./lib/set-non-enumerable.js":12}],11:[function(require,module,exports){
-var Observ = require("observ")
-
-// circular dep between ArrayMethods & this file
-module.exports = ObservArray
-
-var splice = require("./splice.js")
-var put = require("./put.js")
-var set = require("./set.js")
-var transaction = require("./transaction.js")
-var ArrayMethods = require("./array-methods.js")
-var addListener = require("./add-listener.js")
-
-
-/*  ObservArray := (Array<T>) => Observ<
-        Array<T> & { _diff: Array }
-    > & {
-        splice: (index: Number, amount: Number, rest...: T) =>
-            Array<T>,
-        push: (values...: T) => Number,
-        filter: (lambda: Function, thisValue: Any) => Array<T>,
-        indexOf: (item: T, fromIndex: Number) => Number
-    }
-
-    Fix to make it more like ObservHash.
-
-    I.e. you write observables into it.
-        reading methods take plain JS objects to read
-        and the value of the array is always an array of plain
-        objsect.
-
-        The observ array instance itself would have indexed
-        properties that are the observables
-*/
-function ObservArray(initialList) {
-    // list is the internal mutable list observ instances that
-    // all methods on `obs` dispatch to.
-    var list = initialList
-    var initialState = []
-
-    // copy state out of initialList into initialState
-    list.forEach(function (observ, index) {
-        initialState[index] = typeof observ === "function" ?
-            observ() : observ
-    })
-
-    var obs = Observ(initialState)
-    obs.splice = splice
-
-    // override set and store original for later use
-    obs._observSet = obs.set
-    obs.set = set
-
-    obs.get = get
-    obs.getLength = getLength
-    obs.put = put
-    obs.transaction = transaction
-
-    // you better not mutate this list directly
-    // this is the list of observs instances
-    obs._list = list
-
-    var removeListeners = list.map(function (observ) {
-        return typeof observ === "function" ?
-            addListener(obs, observ) :
-            null
-    });
-    // this is a list of removal functions that must be called
-    // when observ instances are removed from `obs.list`
-    // not calling this means we do not GC our observ change
-    // listeners. Which causes rage bugs
-    obs._removeListeners = removeListeners
-
-    obs._type = "observ-array"
-    obs._version = "3"
-
-    return ArrayMethods(obs, list)
-}
-
-function get(index) {
-    return this._list[index]
-}
-
-function getLength() {
-    return this._list.length
-}
-
-},{"./add-listener.js":6,"./array-methods.js":8,"./put.js":14,"./set.js":15,"./splice.js":16,"./transaction.js":17,"observ":23}],12:[function(require,module,exports){
-module.exports = setNonEnumerable;
-
-function setNonEnumerable(object, key, value) {
-    Object.defineProperty(object, key, {
-        value: value,
-        writable: true,
-        configurable: true,
-        enumerable: false
-    });
-}
-
-},{}],13:[function(require,module,exports){
-function head (a) {
-  return a[0]
-}
-
-function last (a) {
-  return a[a.length - 1]
-}
-
-function tail(a) {
-  return a.slice(1)
-}
-
-function retreat (e) {
-  return e.pop()
-}
-
-function hasLength (e) {
-  return e.length
-}
-
-function any(ary, test) {
-  for(var i=0;i<ary.length;i++)
-    if(test(ary[i]))
-      return true
-  return false
-}
-
-function score (a) {
-  return a.reduce(function (s, a) {
-      return s + a.length + a[1] + 1
-  }, 0)
-}
-
-function best (a, b) {
-  return score(a) <= score(b) ? a : b
-}
-
-
-var _rules // set at the bottom  
-
-// note, naive implementation. will break on circular objects.
-
-function _equal(a, b) {
-  if(a && !b) return false
-  if(Array.isArray(a))
-    if(a.length != b.length) return false
-  if(a && 'object' == typeof a) {
-    for(var i in a)
-      if(!_equal(a[i], b[i])) return false
-    for(var i in b)
-      if(!_equal(a[i], b[i])) return false
-    return true
-  }
-  return a == b
-}
-
-function getArgs(args) {
-  return args.length == 1 ? args[0] : [].slice.call(args)
-}
-
-// return the index of the element not like the others, or -1
-function oddElement(ary, cmp) {
-  var c
-  function guess(a) {
-    var odd = -1
-    c = 0
-    for (var i = a; i < ary.length; i ++) {
-      if(!cmp(ary[a], ary[i])) {
-        odd = i, c++
-      }
-    }
-    return c > 1 ? -1 : odd
-  }
-  //assume that it is the first element.
-  var g = guess(0)
-  if(-1 != g) return g
-  //0 was the odd one, then all the other elements are equal
-  //else there more than one different element
-  guess(1)
-  return c == 0 ? 0 : -1
-}
-var exports = module.exports = function (deps, exports) {
-  var equal = (deps && deps.equal) || _equal
-  exports = exports || {} 
-  exports.lcs = 
-  function lcs() {
-    var cache = {}
-    var args = getArgs(arguments)
-    var a = args[0], b = args[1]
-
-    function key (a,b){
-      return a.length + ':' + b.length
-    }
-
-    //find length that matches at the head
-
-    if(args.length > 2) {
-      //if called with multiple sequences
-      //recurse, since lcs(a, b, c, d) == lcs(lcs(a,b), lcs(c,d))
-      args.push(lcs(args.shift(), args.shift()))
-      return lcs(args)
-    }
-    
-    //this would be improved by truncating input first
-    //and not returning an lcs as an intermediate step.
-    //untill that is a performance problem.
-
-    var start = 0, end = 0
-    for(var i = 0; i < a.length && i < b.length 
-      && equal(a[i], b[i])
-      ; i ++
-    )
-      start = i + 1
-
-    if(a.length === start)
-      return a.slice()
-
-    for(var i = 0;  i < a.length - start && i < b.length - start
-      && equal(a[a.length - 1 - i], b[b.length - 1 - i])
-      ; i ++
-    )
-      end = i
-
-    function recurse (a, b) {
-      if(!a.length || !b.length) return []
-      //avoid exponential time by caching the results
-      if(cache[key(a, b)]) return cache[key(a, b)]
-
-      if(equal(a[0], b[0]))
-        return [head(a)].concat(recurse(tail(a), tail(b)))
-      else { 
-        var _a = recurse(tail(a), b)
-        var _b = recurse(a, tail(b))
-        return cache[key(a,b)] = _a.length > _b.length ? _a : _b  
-      }
-    }
-    
-    var middleA = a.slice(start, a.length - end)
-    var middleB = b.slice(start, b.length - end)
-
-    return (
-      a.slice(0, start).concat(
-        recurse(middleA, middleB)
-      ).concat(a.slice(a.length - end))
-    )
-  }
-
-  // given n sequences, calc the lcs, and then chunk strings into stable and unstable sections.
-  // unstable chunks are passed to build
-  exports.chunk =
-  function (q, build) {
-    var q = q.map(function (e) { return e.slice() })
-    var lcs = exports.lcs.apply(null, q)
-    var all = [lcs].concat(q)
-
-    function matchLcs (e) {
-      if(e.length && !lcs.length || !e.length && lcs.length)
-        return false //incase the last item is null
-      return equal(last(e), last(lcs)) || ((e.length + lcs.length) === 0)
-    }
-
-    while(any(q, hasLength)) {
-      //if each element is at the lcs then this chunk is stable.
-      while(q.every(matchLcs) && q.every(hasLength))
-        all.forEach(retreat)
-      //collect the changes in each array upto the next match with the lcs
-      var c = false
-      var unstable = q.map(function (e) {
-        var change = []
-        while(!matchLcs(e)) {
-          change.unshift(retreat(e))
-          c = true
-        }
-        return change
-      })
-      if(c) build(q[0].length, unstable)
-    }
-  }
-
-  //calculate a diff this is only updates
-  exports.optimisticDiff =
-  function (a, b) {
-    var M = Math.max(a.length, b.length)
-    var m = Math.min(a.length, b.length)
-    var patch = []
-    for(var i = 0; i < M; i++)
-      if(a[i] !== b[i]) {
-        var cur = [i,0], deletes = 0
-        while(a[i] !== b[i] && i < m) {
-          cur[1] = ++deletes
-          cur.push(b[i++])
-        }
-        //the rest are deletes or inserts
-        if(i >= m) {
-          //the rest are deletes
-          if(a.length > b.length)
-            cur[1] += a.length - b.length
-          //the rest are inserts
-          else if(a.length < b.length)
-            cur = cur.concat(b.slice(a.length))
-        }
-        patch.push(cur)
-      }
-
-    return patch
-  }
-
-  exports.diff =
-  function (a, b) {
-    var optimistic = exports.optimisticDiff(a, b)
-    var changes = []
-    exports.chunk([a, b], function (index, unstable) {
-      var del = unstable.shift().length
-      var insert = unstable.shift()
-      changes.push([index, del].concat(insert))
-    })
-    return best(optimistic, changes)
-  }
-
-  exports.patch = function (a, changes, mutate) {
-    if(mutate !== true) a = a.slice(a)//copy a
-    changes.forEach(function (change) {
-      [].splice.apply(a, change)
-    })
-    return a
-  }
-
-  // http://en.wikipedia.org/wiki/Concestor
-  // me, concestor, you...
-  exports.merge = function () {
-    var args = getArgs(arguments)
-    var patch = exports.diff3(args)
-    return exports.patch(args[0], patch)
-  }
-
-  exports.diff3 = function () {
-    var args = getArgs(arguments)
-    var r = []
-    exports.chunk(args, function (index, unstable) {
-      var mine = unstable[0]
-      var insert = resolve(unstable)
-      if(equal(mine, insert)) return 
-      r.push([index, mine.length].concat(insert)) 
-    })
-    return r
-  }
-  exports.oddOneOut =
-    function oddOneOut (changes) {
-      changes = changes.slice()
-      //put the concestor first
-      changes.unshift(changes.splice(1,1)[0])
-      var i = oddElement(changes, equal)
-      if(i == 0) // concestor was different, 'false conflict'
-        return changes[1]
-      if (~i)
-        return changes[i] 
-    }
-  exports.insertMergeOverDelete = 
-    //i've implemented this as a seperate rule,
-    //because I had second thoughts about this.
-    function insertMergeOverDelete (changes) {
-      changes = changes.slice()
-      changes.splice(1,1)// remove concestor
-      
-      //if there is only one non empty change thats okay.
-      //else full confilct
-      for (var i = 0, nonempty; i < changes.length; i++)
-        if(changes[i].length) 
-          if(!nonempty) nonempty = changes[i]
-          else return // full conflict
-      return nonempty
-    }
-
-  var rules = (deps && deps.rules) || [exports.oddOneOut, exports.insertMergeOverDelete]
-
-  function resolve (changes) {
-    var l = rules.length
-    for (var i in rules) { // first
-      
-      var c = rules[i] && rules[i](changes)
-      if(c) return c
-    }
-    changes.splice(1,1) // remove concestor
-    //returning the conflicts as an object is a really bad idea,
-    // because == will not detect they are the same. and conflicts build.
-    // better to use
-    // '<<<<<<<<<<<<<'
-    // of course, i wrote this before i started on snob, so i didn't know that then.
-    /*var conflict = ['>>>>>>>>>>>>>>>>']
-    while(changes.length)
-      conflict = conflict.concat(changes.shift()).concat('============')
-    conflict.pop()
-    conflict.push          ('<<<<<<<<<<<<<<<')
-    changes.unshift       ('>>>>>>>>>>>>>>>')
-    return conflict*/
-    //nah, better is just to use an equal can handle objects
-    return {'?': changes}
-  }
-  return exports
-}
-exports(null, exports)
-
-},{}],14:[function(require,module,exports){
-var addListener = require("./add-listener.js")
-var setNonEnumerable = require("./lib/set-non-enumerable.js");
-
-module.exports = put
-
-// `obs.put` is a mutable implementation of `array[index] = value`
-// that mutates both `list` and the internal `valueList` that
-// is the current value of `obs` itself
-function put(index, value) {
-    var obs = this
-    var valueList = obs().slice()
-
-    var originalLength = valueList.length
-    valueList[index] = typeof value === "function" ? value() : value
-
-    obs._list[index] = value
-
-    // remove past value listener if was observ
-    var removeListener = obs._removeListeners[index]
-    if (removeListener){
-        removeListener()
-    }
-
-    // add listener to value if observ
-    obs._removeListeners[index] = typeof value === "function" ?
-        addListener(obs, value) :
-        null
-
-    // fake splice diff
-    var valueArgs = index < originalLength ? 
-        [index, 1, valueList[index]] :
-        [index, 0, valueList[index]]
-
-    setNonEnumerable(valueList, "_diff", [valueArgs])
-
-    obs._observSet(valueList)
-    return value
-}
-},{"./add-listener.js":6,"./lib/set-non-enumerable.js":12}],15:[function(require,module,exports){
-var applyPatch = require("./apply-patch.js")
-var setNonEnumerable = require("./lib/set-non-enumerable.js")
-var adiff = require("adiff")
-
-module.exports = set
-
-function set(rawList) {
-    if (!Array.isArray(rawList)) rawList = []
-
-    var obs = this
-    var changes = adiff.diff(obs._list, rawList)
-    var valueList = obs().slice()
-
-    var valueChanges = changes.map(applyPatch.bind(obs, valueList))
-
-    setNonEnumerable(valueList, "_diff", valueChanges)
-
-    obs._observSet(valueList)
-    return changes
-}
-
-},{"./apply-patch.js":7,"./lib/set-non-enumerable.js":12,"adiff":13}],16:[function(require,module,exports){
-var slice = Array.prototype.slice
-
-var addListener = require("./add-listener.js")
-var setNonEnumerable = require("./lib/set-non-enumerable.js");
-
-module.exports = splice
-
-// `obs.splice` is a mutable implementation of `splice()`
-// that mutates both `list` and the internal `valueList` that
-// is the current value of `obs` itself
-function splice(index, amount) {
-    var obs = this
-    var args = slice.call(arguments, 0)
-    var valueList = obs().slice()
-
-    // generate a list of args to mutate the internal
-    // list of only obs
-    var valueArgs = args.map(function (value, index) {
-        if (index === 0 || index === 1) {
-            return value
-        }
-
-        // must unpack observables that we are adding
-        return typeof value === "function" ? value() : value
-    })
-
-    valueList.splice.apply(valueList, valueArgs)
-    // we remove the observs that we remove
-    var removed = obs._list.splice.apply(obs._list, args)
-
-    var extraRemoveListeners = args.slice(2).map(function (observ) {
-        return typeof observ === "function" ?
-            addListener(obs, observ) :
-            null
-    })
-    extraRemoveListeners.unshift(args[0], args[1])
-    var removedListeners = obs._removeListeners.splice
-        .apply(obs._removeListeners, extraRemoveListeners)
-
-    removedListeners.forEach(function (removeObservListener) {
-        if (removeObservListener) {
-            removeObservListener()
-        }
-    })
-
-    setNonEnumerable(valueList, "_diff", [valueArgs])
-
-    obs._observSet(valueList)
-    return removed
-}
-
-},{"./add-listener.js":6,"./lib/set-non-enumerable.js":12}],17:[function(require,module,exports){
-module.exports = transaction
-
-function transaction (func) {
-    var obs = this
-    var rawList = obs._list.slice()
-
-    if (func(rawList) !== false){ // allow cancel
-        return obs.set(rawList)
-    }
-
-}
-},{}],18:[function(require,module,exports){
-var Observ = require("observ")
-var extend = require("xtend")
-
-var blackList = {
-    "length": "Clashes with `Function.prototype.length`.\n",
-    "name": "Clashes with `Function.prototype.name`.\n",
-    "_diff": "_diff is reserved key of observ-struct.\n",
-    "_type": "_type is reserved key of observ-struct.\n",
-    "_version": "_version is reserved key of observ-struct.\n"
-}
-var NO_TRANSACTION = {}
-
-function setNonEnumerable(object, key, value) {
-    Object.defineProperty(object, key, {
-        value: value,
-        writable: true,
-        configurable: true,
-        enumerable: false
-    })
-}
-
-/* ObservStruct := (Object<String, Observ<T>>) =>
-    Object<String, Observ<T>> &
-        Observ<Object<String, T> & {
-            _diff: Object<String, Any>
-        }>
-
-*/
-module.exports = ObservStruct
-
-function ObservStruct(struct) {
-    var keys = Object.keys(struct)
-
-    var initialState = {}
-    var currentTransaction = NO_TRANSACTION
-    var nestedTransaction = NO_TRANSACTION
-
-    keys.forEach(function (key) {
-        if (blackList.hasOwnProperty(key)) {
-            throw new Error("cannot create an observ-struct " +
-                "with a key named '" + key + "'.\n" +
-                blackList[key]);
-        }
-
-        var observ = struct[key]
-        initialState[key] = typeof observ === "function" ?
-            observ() : observ
-    })
-
-    var obs = Observ(initialState)
-    keys.forEach(function (key) {
-        var observ = struct[key]
-        obs[key] = observ
-
-        if (typeof observ === "function") {
-            observ(function (value) {
-                if (nestedTransaction === value) {
-                    return
-                }
-
-                var state = extend(obs())
-                state[key] = value
-                var diff = {}
-                diff[key] = value && value._diff ?
-                    value._diff : value
-
-                setNonEnumerable(state, "_diff", diff)
-                currentTransaction = state
-                obs.set(state)
-                currentTransaction = NO_TRANSACTION
-            })
-        }
-    })
-    var _set = obs.set
-    obs.set = function trackDiff(value) {
-        if (currentTransaction === value) {
-            return _set(value)
-        }
-
-        var newState = extend(value)
-        setNonEnumerable(newState, "_diff", value)
-        _set(newState)
-    }
-
-    obs(function (newState) {
-        if (currentTransaction === newState) {
-            return
-        }
-
-        keys.forEach(function (key) {
-            var observ = struct[key]
-            var newObservValue = newState[key]
-
-            if (typeof observ === "function" &&
-                observ() !== newObservValue
-            ) {
-                nestedTransaction = newObservValue
-                observ.set(newState[key])
-                nestedTransaction = NO_TRANSACTION
-            }
-        })
-    })
-
-    obs._type = "observ-struct"
-    obs._version = "5"
-
-    return obs
-}
-
-},{"observ":19,"xtend":20}],19:[function(require,module,exports){
-module.exports = Observable
-
-function Observable(value) {
-    var listeners = []
-    value = value === undefined ? null : value
-
-    observable.set = function (v) {
-        value = v
-        listeners.forEach(function (f) {
-            f(v)
-        })
-    }
-
-    return observable
-
-    function observable(listener) {
-        if (!listener) {
-            return value
-        }
-
-        listeners.push(listener)
-
-        return function remove() {
-            listeners.splice(listeners.indexOf(listener), 1)
-        }
-    }
-}
-
-},{}],20:[function(require,module,exports){
-module.exports = extend
-
-function extend() {
-    var target = {}
-
-    for (var i = 0; i < arguments.length; i++) {
-        var source = arguments[i]
-
-        for (var key in source) {
-            if (source.hasOwnProperty(key)) {
-                target[key] = source[key]
-            }
-        }
-    }
-
-    return target
-}
-
-},{}],21:[function(require,module,exports){
-var Observ = require('observ')
-var extend = require('xtend')
-
-var NO_TRANSACTION = {}
-
-module.exports = ObservVarhash
-
-function ObservVarhash (hash, createValue) {
-  createValue = createValue || function (obj) { return obj }
-
-  var initialState = {}
-  var currentTransaction = NO_TRANSACTION
-
-  var obs = Observ(initialState)
-  setNonEnumerable(obs, '_removeListeners', {})
-
-  setNonEnumerable(obs, 'set', obs.set)
-  setNonEnumerable(obs, 'get', get.bind(obs))
-  setNonEnumerable(obs, 'put', put.bind(obs, createValue, currentTransaction))
-  setNonEnumerable(obs, 'delete', del.bind(obs))
-
-  for (var key in hash) {
-    obs[key] = typeof hash[key] === 'function' ?
-      hash[key] : createValue(hash[key], key)
-
-    if (isFn(obs[key])) {
-      obs._removeListeners[key] = obs[key](watch(obs, key, currentTransaction))
-    }
-  }
-
-  var newState = {}
-  for (key in hash) {
-    var observ = obs[key]
-    checkKey(key)
-    newState[key] = isFn(observ) ? observ() : observ
-  }
-  obs.set(newState)
-
-  obs(function (newState) {
-    if (currentTransaction === newState) {
-      return
-    }
-
-    for (var key in hash) {
-      var observ = hash[key]
-
-      if (isFn(observ) && observ() !== newState[key]) {
-        observ.set(newState[key])
-      }
-    }
-  })
-
-  return obs
-}
-
-// access and mutate
-function get (key) {
-  return this[key]
-}
-
-function put (createValue, currentTransaction, key, val) {
-  checkKey(key)
-
-  if (val === undefined) {
-    throw new Error('cannot varhash.put(key, undefined).')
-  }
-
-  var observ = typeof val === 'function' ?
-    val : createValue(val, key)
-  var state = extend(this())
-
-  state[key] = isFn(observ) ? observ() : observ
-
-  if (isFn(this._removeListeners[key])) {
-    this._removeListeners[key]()
-  }
-
-  this._removeListeners[key] = isFn(observ) ?
-    observ(watch(this, key, currentTransaction)) : null
-
-  setNonEnumerable(state, '_diff', diff(key, state[key]))
-
-  this[key] = observ
-  this.set(state)
-
-  return this
-}
-
-function del (key) {
-  var state = extend(this())
-  if (isFn(this._removeListeners[key])) {
-    this._removeListeners[key]()
-  }
-
-  delete this._removeListeners[key]
-  delete state[key]
-  delete this[key]
-
-  setNonEnumerable(state, '_diff', diff(key, undefined))
-  this.set(state)
-
-  return this
-}
-
-// processing
-function watch (obs, key, currentTransaction) {
-  return function (value) {
-    var state = extend(obs())
-    state[key] = value
-
-    setNonEnumerable(state, '_diff', diff(key, value))
-    currentTransaction = state
-    obs.set(state)
-    currentTransaction = NO_TRANSACTION
-  }
-}
-
-function diff (key, value) {
-  var obj = {}
-  obj[key] = value && value._diff ? value._diff : value
-  return obj
-}
-
-function isFn (obj) {
-  return typeof obj === 'function'
-}
-
-function setNonEnumerable(object, key, value) {
-  Object.defineProperty(object, key, {
-    value: value,
-    writable: true,
-    configurable: true,
-    enumerable: false
-  })
-}
-
-// errors
-var blacklist = {
-  name: 'Clashes with `Function.prototype.name`.',
-  get: 'get is a reserved key of observ-varhash method',
-  put: 'put is a reserved key of observ-varhash method',
-  'delete': 'delete is a reserved key of observ-varhash method',
-  _diff: '_diff is a reserved key of observ-varhash method',
-  _removeListeners: '_removeListeners is a reserved key of observ-varhash'
-}
-
-function checkKey (key) {
-  if (!blacklist[key]) return
-  throw new Error(
-    'cannot create an observ-varhash with key `' + key + '`. ' + blacklist[key]
-  )
-}
-
-},{"observ":23,"xtend":22}],22:[function(require,module,exports){
-arguments[4][20][0].apply(exports,arguments)
-},{"dup":20}],23:[function(require,module,exports){
-arguments[4][19][0].apply(exports,arguments)
-},{"dup":19}],24:[function(require,module,exports){
 var createElement = require("./vdom/create-element.js")
 
 module.exports = createElement
 
-},{"./vdom/create-element.js":36}],25:[function(require,module,exports){
+},{"./vdom/create-element.js":13}],2:[function(require,module,exports){
 var diff = require("./vtree/diff.js")
 
 module.exports = diff
 
-},{"./vtree/diff.js":56}],26:[function(require,module,exports){
+},{"./vtree/diff.js":33}],3:[function(require,module,exports){
 var h = require("./virtual-hyperscript/index.js")
 
 module.exports = h
 
-},{"./virtual-hyperscript/index.js":43}],27:[function(require,module,exports){
+},{"./virtual-hyperscript/index.js":20}],4:[function(require,module,exports){
 /*!
  * Cross-Browser Split 1.1.1
  * Copyright 2007-2012 Steven Levithan <stevenlevithan.com>
@@ -1648,7 +121,7 @@ module.exports = (function split(undef) {
   return self;
 })();
 
-},{}],28:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 'use strict';
 
 var OneVersionConstraint = require('individual/one-version');
@@ -1670,7 +143,7 @@ function EvStore(elem) {
     return hash;
 }
 
-},{"individual/one-version":30}],29:[function(require,module,exports){
+},{"individual/one-version":7}],6:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -1693,7 +166,7 @@ function Individual(key, value) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],30:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 'use strict';
 
 var Individual = require('./index.js');
@@ -1717,7 +190,7 @@ function OneVersion(moduleName, version, defaultValue) {
     return Individual(key, defaultValue);
 }
 
-},{"./index.js":29}],31:[function(require,module,exports){
+},{"./index.js":6}],8:[function(require,module,exports){
 (function (global){
 var topLevel = typeof global !== 'undefined' ? global :
     typeof window !== 'undefined' ? window : {}
@@ -1736,14 +209,14 @@ if (typeof document !== 'undefined') {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"min-document":57}],32:[function(require,module,exports){
+},{"min-document":38}],9:[function(require,module,exports){
 "use strict";
 
 module.exports = function isObject(x) {
 	return typeof x === "object" && x !== null;
 };
 
-},{}],33:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 var nativeIsArray = Array.isArray
 var toString = Object.prototype.toString
 
@@ -1753,12 +226,12 @@ function isArray(obj) {
     return toString.call(obj) === "[object Array]"
 }
 
-},{}],34:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 var patch = require("./vdom/patch.js")
 
 module.exports = patch
 
-},{"./vdom/patch.js":39}],35:[function(require,module,exports){
+},{"./vdom/patch.js":16}],12:[function(require,module,exports){
 var isObject = require("is-object")
 var isHook = require("../vnode/is-vhook.js")
 
@@ -1857,7 +330,7 @@ function getPrototype(value) {
     }
 }
 
-},{"../vnode/is-vhook.js":47,"is-object":32}],36:[function(require,module,exports){
+},{"../vnode/is-vhook.js":24,"is-object":9}],13:[function(require,module,exports){
 var document = require("global/document")
 
 var applyProperties = require("./apply-properties")
@@ -1905,7 +378,7 @@ function createElement(vnode, opts) {
     return node
 }
 
-},{"../vnode/handle-thunk.js":45,"../vnode/is-vnode.js":48,"../vnode/is-vtext.js":49,"../vnode/is-widget.js":50,"./apply-properties":35,"global/document":31}],37:[function(require,module,exports){
+},{"../vnode/handle-thunk.js":22,"../vnode/is-vnode.js":25,"../vnode/is-vtext.js":26,"../vnode/is-widget.js":27,"./apply-properties":12,"global/document":8}],14:[function(require,module,exports){
 // Maps a virtual DOM tree onto a real DOM tree in an efficient manner.
 // We don't want to read all of the DOM nodes in the tree so we use
 // the in-order tree indexing to eliminate recursion down certain branches.
@@ -1992,7 +465,7 @@ function ascending(a, b) {
     return a > b ? 1 : -1
 }
 
-},{}],38:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 var applyProperties = require("./apply-properties")
 
 var isWidget = require("../vnode/is-widget.js")
@@ -2146,7 +619,7 @@ function replaceRoot(oldRoot, newRoot) {
     return newRoot;
 }
 
-},{"../vnode/is-widget.js":50,"../vnode/vpatch.js":53,"./apply-properties":35,"./create-element":36,"./update-widget":40}],39:[function(require,module,exports){
+},{"../vnode/is-widget.js":27,"../vnode/vpatch.js":30,"./apply-properties":12,"./create-element":13,"./update-widget":17}],16:[function(require,module,exports){
 var document = require("global/document")
 var isArray = require("x-is-array")
 
@@ -2224,7 +697,7 @@ function patchIndices(patches) {
     return indices
 }
 
-},{"./dom-index":37,"./patch-op":38,"global/document":31,"x-is-array":33}],40:[function(require,module,exports){
+},{"./dom-index":14,"./patch-op":15,"global/document":8,"x-is-array":10}],17:[function(require,module,exports){
 var isWidget = require("../vnode/is-widget.js")
 
 module.exports = updateWidget
@@ -2241,7 +714,7 @@ function updateWidget(a, b) {
     return false
 }
 
-},{"../vnode/is-widget.js":50}],41:[function(require,module,exports){
+},{"../vnode/is-widget.js":27}],18:[function(require,module,exports){
 'use strict';
 
 var EvStore = require('ev-store');
@@ -2270,7 +743,7 @@ EvHook.prototype.unhook = function(node, propertyName) {
     es[propName] = undefined;
 };
 
-},{"ev-store":28}],42:[function(require,module,exports){
+},{"ev-store":5}],19:[function(require,module,exports){
 'use strict';
 
 module.exports = SoftSetHook;
@@ -2289,7 +762,7 @@ SoftSetHook.prototype.hook = function (node, propertyName) {
     }
 };
 
-},{}],43:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 'use strict';
 
 var isArray = require('x-is-array');
@@ -2426,7 +899,7 @@ function errorString(obj) {
     }
 }
 
-},{"../vnode/is-thunk":46,"../vnode/is-vhook":47,"../vnode/is-vnode":48,"../vnode/is-vtext":49,"../vnode/is-widget":50,"../vnode/vnode.js":52,"../vnode/vtext.js":54,"./hooks/ev-hook.js":41,"./hooks/soft-set-hook.js":42,"./parse-tag.js":44,"x-is-array":33}],44:[function(require,module,exports){
+},{"../vnode/is-thunk":23,"../vnode/is-vhook":24,"../vnode/is-vnode":25,"../vnode/is-vtext":26,"../vnode/is-widget":27,"../vnode/vnode.js":29,"../vnode/vtext.js":31,"./hooks/ev-hook.js":18,"./hooks/soft-set-hook.js":19,"./parse-tag.js":21,"x-is-array":10}],21:[function(require,module,exports){
 'use strict';
 
 var split = require('browser-split');
@@ -2482,7 +955,7 @@ function parseTag(tag, props) {
     return props.namespace ? tagName : tagName.toUpperCase();
 }
 
-},{"browser-split":27}],45:[function(require,module,exports){
+},{"browser-split":4}],22:[function(require,module,exports){
 var isVNode = require("./is-vnode")
 var isVText = require("./is-vtext")
 var isWidget = require("./is-widget")
@@ -2524,14 +997,14 @@ function renderThunk(thunk, previous) {
     return renderedThunk
 }
 
-},{"./is-thunk":46,"./is-vnode":48,"./is-vtext":49,"./is-widget":50}],46:[function(require,module,exports){
+},{"./is-thunk":23,"./is-vnode":25,"./is-vtext":26,"./is-widget":27}],23:[function(require,module,exports){
 module.exports = isThunk
 
 function isThunk(t) {
     return t && t.type === "Thunk"
 }
 
-},{}],47:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 module.exports = isHook
 
 function isHook(hook) {
@@ -2540,7 +1013,7 @@ function isHook(hook) {
        typeof hook.unhook === "function" && !hook.hasOwnProperty("unhook"))
 }
 
-},{}],48:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 var version = require("./version")
 
 module.exports = isVirtualNode
@@ -2549,7 +1022,7 @@ function isVirtualNode(x) {
     return x && x.type === "VirtualNode" && x.version === version
 }
 
-},{"./version":51}],49:[function(require,module,exports){
+},{"./version":28}],26:[function(require,module,exports){
 var version = require("./version")
 
 module.exports = isVirtualText
@@ -2558,17 +1031,17 @@ function isVirtualText(x) {
     return x && x.type === "VirtualText" && x.version === version
 }
 
-},{"./version":51}],50:[function(require,module,exports){
+},{"./version":28}],27:[function(require,module,exports){
 module.exports = isWidget
 
 function isWidget(w) {
     return w && w.type === "Widget"
 }
 
-},{}],51:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 module.exports = "2"
 
-},{}],52:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 var version = require("./version")
 var isVNode = require("./is-vnode")
 var isWidget = require("./is-widget")
@@ -2642,7 +1115,7 @@ function VirtualNode(tagName, properties, children, key, namespace) {
 VirtualNode.prototype.version = version
 VirtualNode.prototype.type = "VirtualNode"
 
-},{"./is-thunk":46,"./is-vhook":47,"./is-vnode":48,"./is-widget":50,"./version":51}],53:[function(require,module,exports){
+},{"./is-thunk":23,"./is-vhook":24,"./is-vnode":25,"./is-widget":27,"./version":28}],30:[function(require,module,exports){
 var version = require("./version")
 
 VirtualPatch.NONE = 0
@@ -2666,7 +1139,7 @@ function VirtualPatch(type, vNode, patch) {
 VirtualPatch.prototype.version = version
 VirtualPatch.prototype.type = "VirtualPatch"
 
-},{"./version":51}],54:[function(require,module,exports){
+},{"./version":28}],31:[function(require,module,exports){
 var version = require("./version")
 
 module.exports = VirtualText
@@ -2678,7 +1151,7 @@ function VirtualText(text) {
 VirtualText.prototype.version = version
 VirtualText.prototype.type = "VirtualText"
 
-},{"./version":51}],55:[function(require,module,exports){
+},{"./version":28}],32:[function(require,module,exports){
 var isObject = require("is-object")
 var isHook = require("../vnode/is-vhook")
 
@@ -2738,7 +1211,7 @@ function getPrototype(value) {
   }
 }
 
-},{"../vnode/is-vhook":47,"is-object":32}],56:[function(require,module,exports){
+},{"../vnode/is-vhook":24,"is-object":9}],33:[function(require,module,exports){
 var isArray = require("x-is-array")
 
 var VPatch = require("../vnode/vpatch")
@@ -3167,9 +1640,394 @@ function appendPatch(apply, patch) {
     }
 }
 
-},{"../vnode/handle-thunk":45,"../vnode/is-thunk":46,"../vnode/is-vnode":48,"../vnode/is-vtext":49,"../vnode/is-widget":50,"../vnode/vpatch":53,"./diff-props":55,"x-is-array":33}],57:[function(require,module,exports){
+},{"../vnode/handle-thunk":22,"../vnode/is-thunk":23,"../vnode/is-vnode":25,"../vnode/is-vtext":26,"../vnode/is-widget":27,"../vnode/vpatch":30,"./diff-props":32,"x-is-array":10}],34:[function(require,module,exports){
+"use strict";
 
-},{}],58:[function(require,module,exports){
+var nuclear  = require("../nuclear.js");
+var TodoItem = require("./todo-item.js");
+var utils    = require("./utils");
+
+function TodoApp (opts) {
+
+	opts = opts || {};
+
+	return nuclear.observS({
+		route: nuclear.observ(""),
+		todos: nuclear.observV(opts.todos || {}, TodoItem),
+		field: nuclear.observ(""),
+		channels: {
+			add: add,
+			destroy: destroy
+		}
+	})
+}
+
+function add (state) {
+
+	var that = this;
+
+	if(that.value.trim() === ""){
+		return;
+	}
+
+	var todo = TodoItem({
+		title: that.value.trim()
+	});
+
+	state.todos.put(todo.id(), todo);
+	state.field.set("");
+}
+
+function destroy (state, id) {
+
+	state.todos.delete(id);
+}
+
+TodoApp.render = function (state) {
+
+	var h = nuclear.h;
+
+	var route = nuclear.router(state);
+
+	return (
+		h("div", [
+			h("a", {
+				href: "/home",
+			}, "Home"),
+			h("h1", "Time"),
+			h("div.container", [
+				route("/*",         enterNewTask),
+				route("/",          all),
+				route("/active",    active),
+				route("/completed", completed),
+				route("/*",         footer)
+			])
+		])
+	);
+
+	function enterNewTask (state) {
+
+		return (
+			h("input.task", {
+				type: "text",
+				value: state.field(),
+				name: "newTodo",
+				placeholder: "Insert task",
+				onkeypress: function (evt) {
+
+					if (evt.keyCode == 13) {
+
+						state.channels.add.call(this, state);
+					}
+				}
+			})
+		);
+	}
+
+	function all (state) {
+
+		var todosList = utils.objToArr(state.todos);
+
+		var store  = [];
+
+		todosList.forEach(function (todo) {
+			store.push(TodoItem.render(todo, state.channels.destroy.bind(null, state)));
+		});
+
+		return (
+			h("ul", [
+				store
+			])
+		);
+	}
+
+	function active (state) {
+
+		// filter todos completed
+		var todosList = utils.objToArr(state.todos);
+
+		var storeActive = [];
+		var storeRender    = [];
+
+		todosList.forEach(function (obs) {
+			if(obs().completed === false) {
+				storeActive.push(obs);
+			}
+		});
+
+		storeActive.forEach(function (todo) {
+			storeRender.push(TodoItem.render(todo, state.channels.destroy.bind(null, state)))
+		});
+		
+		return (
+			h("ul", [
+				storeRender
+			])
+		);
+	}
+
+	function completed (state) {
+		
+		// filter todos completed
+		var todosList = utils.objToArr(state.todos);
+
+		var storeCompleted = [];
+		var storeRender    = [];
+
+		todosList.forEach(function (obs) {
+			if(obs().completed === true) {
+				storeCompleted.push(obs);
+			}
+		});
+
+		storeCompleted.forEach(function (todo) {
+			storeRender.push(TodoItem.render(todo, state.channels.destroy.bind(null, state)))
+		});
+
+		return (
+			h("ul", [
+				storeRender
+			])
+		);
+	}
+
+	function footer (state) {
+
+		return (
+			h("div.footer", [
+				h("button#all", {
+					onclick: function () {
+						location.hash = "";
+					}
+				}, "All"),
+				h("button#active", {
+					onclick: function () {
+						location.hash = "active";
+					}
+				}, "Active"),
+				h("button#completed", {
+					onclick: function () {
+						location.hash = "completed";
+					}
+				}, "Completed")
+			])
+		);
+	}
+};
+
+nuclear.app(document.body, TodoApp(), TodoApp.render);
+},{"../nuclear.js":37,"./todo-item.js":35,"./utils":36}],35:[function(require,module,exports){
+"use strict";
+
+var nuclear = require("../nuclear.js");
+var utils   = require("./utils");
+
+module.exports = TodoItem;
+
+function TodoItem (item) {
+
+	item = item || {};
+
+	return nuclear.observS({
+		id:        nuclear.observ(item.id        || (parseInt(Math.random() * 100000, 10))),
+		title:     nuclear.observ(item.title     || ""),
+		editing:   nuclear.observ(item.editing   || false),
+		completed: nuclear.observ(item.completed || false),
+		channels: {
+			toggle: toggle,
+			startEdit: startEdit,
+			finishEdit: finishEdit,
+			cancelEdit: cancelEdit
+		}
+	});
+}
+
+function toggle (state) {
+
+	console.log("toggle");
+
+	state.completed.set(!state.completed());
+}
+
+function startEdit (state) {
+
+	state.editing.set(true);
+}
+
+function finishEdit (state) {
+
+	if (state.editing() === false) {
+		return;
+	}
+
+	state.title.set(this.value);
+	state.channels.cancelEdit(state);
+}
+
+function cancelEdit (state) {
+
+	state.editing.set(false);
+}
+
+TodoItem.render = function (todo, parentHandles) {
+
+	var h = nuclear.h;
+
+	return (
+		h("li", [
+			h("input", {
+				type: "checkbox",
+				checked: todo.completed(),
+				onchange: todo.channels.toggle.bind(this, todo)
+			}),
+			h("p.item", {
+				style: {
+					"display": !todo.editing() ? "" : "none"
+				},
+				ondblclick: todo.channels.startEdit.bind(this, todo)
+			}, todo.title()),
+			h("input", {
+				style: {
+					"display": todo.editing() ? "" : "none"
+				},
+				focus: todo.editing ? utils.focusHook() : null,
+				value: todo.title(),
+				name: 'title',
+				onfocusout: todo.channels.cancelEdit.bind(this, todo),
+				onchange: todo.channels.cancelEdit.bind(this, todo),
+				onkeypress: function (evt) {
+
+					if (evt.keyCode == 13) {
+
+						todo.channels.finishEdit.call(this, todo);
+					}
+				}
+			}),
+			h("button.destroy", {
+				onclick: parentHandles.bind(null, todo.id())
+			}, "x")
+		])
+	);
+}
+},{"../nuclear.js":37,"./utils":36}],36:[function(require,module,exports){
+"use strict";
+
+var nextTick = require('next-tick');
+
+module.exports = {
+	focusHook: MutableFocusHook,
+	objToArr: objectToArray
+}
+
+/**
+ *  
+ *
+ */
+function objectToArray(obj) {
+    return Object.keys(obj).map(function toItem(k) {
+        return obj[k];
+    });
+}
+
+function MutableFocusHook() {
+    if (!(this instanceof MutableFocusHook)) {
+        return new MutableFocusHook();
+    }
+}
+
+MutableFocusHook.prototype.hook = function hook(node, property) {
+    nextTick(function onTick() {
+        if (document.activeElement !== node) {
+            node.focus();
+        }
+    });
+};
+},{"next-tick":40}],37:[function(require,module,exports){
+"use strict";
+
+
+var nuclear = module.exports = {
+	app:           app,
+	router:        router,
+	diff:          require('virtual-dom/diff'),
+	patch:         require('virtual-dom/patch'),
+	createElement: require('virtual-dom/create-element'),
+	h:             require('virtual-dom/h'),
+	observ:        require('observ'),
+	observS:       require('observ-struct'),
+	observA:       require('observ-array'),
+	observV:       require('observ-varhash'),
+	request:       require('xhr')
+};
+
+
+function router (state) {
+
+	// browsers only
+	if (!window) return;
+
+	var loc     = window.location;
+	var win     = window;
+	var started = false;
+
+	function hash () {
+		return loc.href.split('#')[1] || '';
+	}
+
+	function parser (path) {
+		return path.split('/');
+	}
+
+	win.onhashchange = function (evt) {
+		console.log(hash());
+		state.route.set(hash());
+	}
+
+	function route (path, handler) {
+	
+		if (parser(path)[1] === "*") {
+			return handler(state);
+		}
+
+		if(hash() === parser(path)[1]) {
+			return handler(state);
+		}
+	}
+	
+	return route;
+}
+
+
+function app (elem, observ, render) {
+
+	var target = start(render, observ);
+	elem.appendChild(target.dom);
+	
+	return observ(target.update);
+}
+
+
+function start (render, observ) {
+	var virtualTree;
+	var resultsNode;
+	var target = {};
+
+	virtualTree = render(observ);
+	resultsNode = nuclear.createElement(virtualTree);
+	target.dom  = resultsNode;
+	target.update = function () {
+
+		var newResults = render(observ);
+		var patches    = nuclear.diff(virtualTree, newResults);
+		resultsNode    = nuclear.patch(resultsNode, patches);
+		virtualTree    = resultsNode;
+	};
+  
+	return target;
+}
+},{"observ":57,"observ-array":46,"observ-struct":53,"observ-varhash":55,"virtual-dom/create-element":1,"virtual-dom/diff":2,"virtual-dom/h":3,"virtual-dom/patch":11,"xhr":58}],38:[function(require,module,exports){
+
+},{}],39:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -3261,7 +2119,1147 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],59:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
+(function (process){
+'use strict';
+
+var callable, byObserver;
+
+callable = function (fn) {
+	if (typeof fn !== 'function') throw new TypeError(fn + " is not a function");
+	return fn;
+};
+
+byObserver = function (Observer) {
+	var node = document.createTextNode(''), queue, i = 0;
+	new Observer(function () {
+		var data;
+		if (!queue) return;
+		data = queue;
+		queue = null;
+		if (typeof data === 'function') {
+			data();
+			return;
+		}
+		data.forEach(function (fn) { fn(); });
+	}).observe(node, { characterData: true });
+	return function (fn) {
+		callable(fn);
+		if (queue) {
+			if (typeof queue === 'function') queue = [queue, fn];
+			else queue.push(fn);
+			return;
+		}
+		queue = fn;
+		node.data = (i = ++i % 2);
+	};
+};
+
+module.exports = (function () {
+	// Node.js
+	if ((typeof process !== 'undefined') && process &&
+			(typeof process.nextTick === 'function')) {
+		return process.nextTick;
+	}
+
+	// MutationObserver=
+	if ((typeof document === 'object') && document) {
+		if (typeof MutationObserver === 'function') {
+			return byObserver(MutationObserver);
+		}
+		if (typeof WebKitMutationObserver === 'function') {
+			return byObserver(WebKitMutationObserver);
+		}
+	}
+
+	// W3C Draft
+	// http://dvcs.w3.org/hg/webperf/raw-file/tip/specs/setImmediate/Overview.html
+	if (typeof setImmediate === 'function') {
+		return function (cb) { setImmediate(callable(cb)); };
+	}
+
+	// Wide available standard
+	if (typeof setTimeout === 'function') {
+		return function (cb) { setTimeout(callable(cb), 0); };
+	}
+
+	return null;
+}());
+
+}).call(this,require('_process'))
+},{"_process":39}],41:[function(require,module,exports){
+var setNonEnumerable = require("./lib/set-non-enumerable.js");
+
+module.exports = addListener
+
+function addListener(observArray, observ) {
+    var list = observArray._list
+
+    return observ(function (value) {
+        var valueList =  observArray().slice()
+        var index = list.indexOf(observ)
+
+        // This code path should never hit. If this happens
+        // there's a bug in the cleanup code
+        if (index === -1) {
+            var message = "observ-array: Unremoved observ listener"
+            var err = new Error(message)
+            err.list = list
+            err.index = index
+            err.observ = observ
+            throw err
+        }
+
+        valueList.splice(index, 1, value)
+        setNonEnumerable(valueList, "_diff", [ [index, 1, value] ])
+
+        observArray._observSet(valueList)
+    })
+}
+
+},{"./lib/set-non-enumerable.js":47}],42:[function(require,module,exports){
+var addListener = require('./add-listener.js')
+
+module.exports = applyPatch
+
+function applyPatch (valueList, args) {
+    var obs = this
+    var valueArgs = args.map(unpack)
+
+    valueList.splice.apply(valueList, valueArgs)
+    obs._list.splice.apply(obs._list, args)
+
+    var extraRemoveListeners = args.slice(2).map(function (observ) {
+        return typeof observ === "function" ?
+            addListener(obs, observ) :
+            null
+    })
+
+    extraRemoveListeners.unshift(args[0], args[1])
+    var removedListeners = obs._removeListeners.splice
+        .apply(obs._removeListeners, extraRemoveListeners)
+
+    removedListeners.forEach(function (removeObservListener) {
+        if (removeObservListener) {
+            removeObservListener()
+        }
+    })
+
+    return valueArgs
+}
+
+function unpack(value, index){
+    if (index === 0 || index === 1) {
+        return value
+    }
+    return typeof value === "function" ? value() : value
+}
+
+},{"./add-listener.js":41}],43:[function(require,module,exports){
+var ObservArray = require("./index.js")
+
+var slice = Array.prototype.slice
+
+var ARRAY_METHODS = [
+    "concat", "slice", "every", "filter", "forEach", "indexOf",
+    "join", "lastIndexOf", "map", "reduce", "reduceRight",
+    "some", "toString", "toLocaleString"
+]
+
+var methods = ARRAY_METHODS.map(function (name) {
+    return [name, function () {
+        var res = this._list[name].apply(this._list, arguments)
+
+        if (res && Array.isArray(res)) {
+            res = ObservArray(res)
+        }
+
+        return res
+    }]
+})
+
+module.exports = ArrayMethods
+
+function ArrayMethods(obs) {
+    obs.push = observArrayPush
+    obs.pop = observArrayPop
+    obs.shift = observArrayShift
+    obs.unshift = observArrayUnshift
+    obs.reverse = require("./array-reverse.js")
+    obs.sort = require("./array-sort.js")
+
+    methods.forEach(function (tuple) {
+        obs[tuple[0]] = tuple[1]
+    })
+    return obs
+}
+
+
+
+function observArrayPush() {
+    var args = slice.call(arguments)
+    args.unshift(this._list.length, 0)
+    this.splice.apply(this, args)
+
+    return this._list.length
+}
+function observArrayPop() {
+    return this.splice(this._list.length - 1, 1)[0]
+}
+function observArrayShift() {
+    return this.splice(0, 1)[0]
+}
+function observArrayUnshift() {
+    var args = slice.call(arguments)
+    args.unshift(0, 0)
+    this.splice.apply(this, args)
+
+    return this._list.length
+}
+
+
+function notImplemented() {
+    throw new Error("Pull request welcome")
+}
+
+},{"./array-reverse.js":44,"./array-sort.js":45,"./index.js":46}],44:[function(require,module,exports){
+var applyPatch = require("./apply-patch.js")
+var setNonEnumerable = require('./lib/set-non-enumerable.js')
+
+module.exports = reverse
+
+function reverse() {
+    var obs = this
+    var changes = fakeDiff(obs._list.slice().reverse())
+    var valueList = obs().slice().reverse()
+
+    var valueChanges = changes.map(applyPatch.bind(obs, valueList))
+
+    setNonEnumerable(valueList, "_diff", valueChanges)
+
+    obs._observSet(valueList)
+    return changes
+}
+
+function fakeDiff(arr) {
+    var _diff
+    var len = arr.length
+
+    if(len % 2) {
+        var midPoint = (len -1) / 2
+        var a = [0, midPoint].concat(arr.slice(0, midPoint))
+        var b = [midPoint +1, midPoint].concat(arr.slice(midPoint +1, len))
+        var _diff = [a, b]
+    } else {
+        _diff = [ [0, len].concat(arr) ]
+    }
+
+    return _diff
+}
+
+},{"./apply-patch.js":42,"./lib/set-non-enumerable.js":47}],45:[function(require,module,exports){
+var applyPatch = require("./apply-patch.js")
+var setNonEnumerable = require("./lib/set-non-enumerable.js")
+
+module.exports = sort
+
+function sort(compare) {
+    var obs = this
+    var list = obs._list.slice()
+
+    var unpacked = unpack(list)
+
+    var sorted = unpacked
+            .map(function(it) { return it.val })
+            .sort(compare)
+
+    var packed = repack(sorted, unpacked)
+
+    //fake diff - for perf
+    //adiff on 10k items === ~3200ms
+    //fake on 10k items === ~110ms
+    var changes = [ [ 0, packed.length ].concat(packed) ]
+
+    var valueChanges = changes.map(applyPatch.bind(obs, sorted))
+
+    setNonEnumerable(sorted, "_diff", valueChanges)
+
+    obs._observSet(sorted)
+    return changes
+}
+
+function unpack(list) {
+    var unpacked = []
+    for(var i = 0; i < list.length; i++) {
+        unpacked.push({
+            val: ("function" == typeof list[i]) ? list[i]() : list[i],
+            obj: list[i]
+        })
+    }
+    return unpacked
+}
+
+function repack(sorted, unpacked) {
+    var packed = []
+
+    while(sorted.length) {
+        var s = sorted.shift()
+        var indx = indexOf(s, unpacked)
+        if(~indx) packed.push(unpacked.splice(indx, 1)[0].obj)
+    }
+
+    return packed
+}
+
+function indexOf(n, h) {
+    for(var i = 0; i < h.length; i++) {
+        if(n === h[i].val) return i
+    }
+    return -1
+}
+
+},{"./apply-patch.js":42,"./lib/set-non-enumerable.js":47}],46:[function(require,module,exports){
+var Observ = require("observ")
+
+// circular dep between ArrayMethods & this file
+module.exports = ObservArray
+
+var splice = require("./splice.js")
+var put = require("./put.js")
+var set = require("./set.js")
+var transaction = require("./transaction.js")
+var ArrayMethods = require("./array-methods.js")
+var addListener = require("./add-listener.js")
+
+
+/*  ObservArray := (Array<T>) => Observ<
+        Array<T> & { _diff: Array }
+    > & {
+        splice: (index: Number, amount: Number, rest...: T) =>
+            Array<T>,
+        push: (values...: T) => Number,
+        filter: (lambda: Function, thisValue: Any) => Array<T>,
+        indexOf: (item: T, fromIndex: Number) => Number
+    }
+
+    Fix to make it more like ObservHash.
+
+    I.e. you write observables into it.
+        reading methods take plain JS objects to read
+        and the value of the array is always an array of plain
+        objsect.
+
+        The observ array instance itself would have indexed
+        properties that are the observables
+*/
+function ObservArray(initialList) {
+    // list is the internal mutable list observ instances that
+    // all methods on `obs` dispatch to.
+    var list = initialList
+    var initialState = []
+
+    // copy state out of initialList into initialState
+    list.forEach(function (observ, index) {
+        initialState[index] = typeof observ === "function" ?
+            observ() : observ
+    })
+
+    var obs = Observ(initialState)
+    obs.splice = splice
+
+    // override set and store original for later use
+    obs._observSet = obs.set
+    obs.set = set
+
+    obs.get = get
+    obs.getLength = getLength
+    obs.put = put
+    obs.transaction = transaction
+
+    // you better not mutate this list directly
+    // this is the list of observs instances
+    obs._list = list
+
+    var removeListeners = list.map(function (observ) {
+        return typeof observ === "function" ?
+            addListener(obs, observ) :
+            null
+    });
+    // this is a list of removal functions that must be called
+    // when observ instances are removed from `obs.list`
+    // not calling this means we do not GC our observ change
+    // listeners. Which causes rage bugs
+    obs._removeListeners = removeListeners
+
+    obs._type = "observ-array"
+    obs._version = "3"
+
+    return ArrayMethods(obs, list)
+}
+
+function get(index) {
+    return this._list[index]
+}
+
+function getLength() {
+    return this._list.length
+}
+
+},{"./add-listener.js":41,"./array-methods.js":43,"./put.js":49,"./set.js":50,"./splice.js":51,"./transaction.js":52,"observ":57}],47:[function(require,module,exports){
+module.exports = setNonEnumerable;
+
+function setNonEnumerable(object, key, value) {
+    Object.defineProperty(object, key, {
+        value: value,
+        writable: true,
+        configurable: true,
+        enumerable: false
+    });
+}
+
+},{}],48:[function(require,module,exports){
+function head (a) {
+  return a[0]
+}
+
+function last (a) {
+  return a[a.length - 1]
+}
+
+function tail(a) {
+  return a.slice(1)
+}
+
+function retreat (e) {
+  return e.pop()
+}
+
+function hasLength (e) {
+  return e.length
+}
+
+function any(ary, test) {
+  for(var i=0;i<ary.length;i++)
+    if(test(ary[i]))
+      return true
+  return false
+}
+
+function score (a) {
+  return a.reduce(function (s, a) {
+      return s + a.length + a[1] + 1
+  }, 0)
+}
+
+function best (a, b) {
+  return score(a) <= score(b) ? a : b
+}
+
+
+var _rules // set at the bottom  
+
+// note, naive implementation. will break on circular objects.
+
+function _equal(a, b) {
+  if(a && !b) return false
+  if(Array.isArray(a))
+    if(a.length != b.length) return false
+  if(a && 'object' == typeof a) {
+    for(var i in a)
+      if(!_equal(a[i], b[i])) return false
+    for(var i in b)
+      if(!_equal(a[i], b[i])) return false
+    return true
+  }
+  return a == b
+}
+
+function getArgs(args) {
+  return args.length == 1 ? args[0] : [].slice.call(args)
+}
+
+// return the index of the element not like the others, or -1
+function oddElement(ary, cmp) {
+  var c
+  function guess(a) {
+    var odd = -1
+    c = 0
+    for (var i = a; i < ary.length; i ++) {
+      if(!cmp(ary[a], ary[i])) {
+        odd = i, c++
+      }
+    }
+    return c > 1 ? -1 : odd
+  }
+  //assume that it is the first element.
+  var g = guess(0)
+  if(-1 != g) return g
+  //0 was the odd one, then all the other elements are equal
+  //else there more than one different element
+  guess(1)
+  return c == 0 ? 0 : -1
+}
+var exports = module.exports = function (deps, exports) {
+  var equal = (deps && deps.equal) || _equal
+  exports = exports || {} 
+  exports.lcs = 
+  function lcs() {
+    var cache = {}
+    var args = getArgs(arguments)
+    var a = args[0], b = args[1]
+
+    function key (a,b){
+      return a.length + ':' + b.length
+    }
+
+    //find length that matches at the head
+
+    if(args.length > 2) {
+      //if called with multiple sequences
+      //recurse, since lcs(a, b, c, d) == lcs(lcs(a,b), lcs(c,d))
+      args.push(lcs(args.shift(), args.shift()))
+      return lcs(args)
+    }
+    
+    //this would be improved by truncating input first
+    //and not returning an lcs as an intermediate step.
+    //untill that is a performance problem.
+
+    var start = 0, end = 0
+    for(var i = 0; i < a.length && i < b.length 
+      && equal(a[i], b[i])
+      ; i ++
+    )
+      start = i + 1
+
+    if(a.length === start)
+      return a.slice()
+
+    for(var i = 0;  i < a.length - start && i < b.length - start
+      && equal(a[a.length - 1 - i], b[b.length - 1 - i])
+      ; i ++
+    )
+      end = i
+
+    function recurse (a, b) {
+      if(!a.length || !b.length) return []
+      //avoid exponential time by caching the results
+      if(cache[key(a, b)]) return cache[key(a, b)]
+
+      if(equal(a[0], b[0]))
+        return [head(a)].concat(recurse(tail(a), tail(b)))
+      else { 
+        var _a = recurse(tail(a), b)
+        var _b = recurse(a, tail(b))
+        return cache[key(a,b)] = _a.length > _b.length ? _a : _b  
+      }
+    }
+    
+    var middleA = a.slice(start, a.length - end)
+    var middleB = b.slice(start, b.length - end)
+
+    return (
+      a.slice(0, start).concat(
+        recurse(middleA, middleB)
+      ).concat(a.slice(a.length - end))
+    )
+  }
+
+  // given n sequences, calc the lcs, and then chunk strings into stable and unstable sections.
+  // unstable chunks are passed to build
+  exports.chunk =
+  function (q, build) {
+    var q = q.map(function (e) { return e.slice() })
+    var lcs = exports.lcs.apply(null, q)
+    var all = [lcs].concat(q)
+
+    function matchLcs (e) {
+      if(e.length && !lcs.length || !e.length && lcs.length)
+        return false //incase the last item is null
+      return equal(last(e), last(lcs)) || ((e.length + lcs.length) === 0)
+    }
+
+    while(any(q, hasLength)) {
+      //if each element is at the lcs then this chunk is stable.
+      while(q.every(matchLcs) && q.every(hasLength))
+        all.forEach(retreat)
+      //collect the changes in each array upto the next match with the lcs
+      var c = false
+      var unstable = q.map(function (e) {
+        var change = []
+        while(!matchLcs(e)) {
+          change.unshift(retreat(e))
+          c = true
+        }
+        return change
+      })
+      if(c) build(q[0].length, unstable)
+    }
+  }
+
+  //calculate a diff this is only updates
+  exports.optimisticDiff =
+  function (a, b) {
+    var M = Math.max(a.length, b.length)
+    var m = Math.min(a.length, b.length)
+    var patch = []
+    for(var i = 0; i < M; i++)
+      if(a[i] !== b[i]) {
+        var cur = [i,0], deletes = 0
+        while(a[i] !== b[i] && i < m) {
+          cur[1] = ++deletes
+          cur.push(b[i++])
+        }
+        //the rest are deletes or inserts
+        if(i >= m) {
+          //the rest are deletes
+          if(a.length > b.length)
+            cur[1] += a.length - b.length
+          //the rest are inserts
+          else if(a.length < b.length)
+            cur = cur.concat(b.slice(a.length))
+        }
+        patch.push(cur)
+      }
+
+    return patch
+  }
+
+  exports.diff =
+  function (a, b) {
+    var optimistic = exports.optimisticDiff(a, b)
+    var changes = []
+    exports.chunk([a, b], function (index, unstable) {
+      var del = unstable.shift().length
+      var insert = unstable.shift()
+      changes.push([index, del].concat(insert))
+    })
+    return best(optimistic, changes)
+  }
+
+  exports.patch = function (a, changes, mutate) {
+    if(mutate !== true) a = a.slice(a)//copy a
+    changes.forEach(function (change) {
+      [].splice.apply(a, change)
+    })
+    return a
+  }
+
+  // http://en.wikipedia.org/wiki/Concestor
+  // me, concestor, you...
+  exports.merge = function () {
+    var args = getArgs(arguments)
+    var patch = exports.diff3(args)
+    return exports.patch(args[0], patch)
+  }
+
+  exports.diff3 = function () {
+    var args = getArgs(arguments)
+    var r = []
+    exports.chunk(args, function (index, unstable) {
+      var mine = unstable[0]
+      var insert = resolve(unstable)
+      if(equal(mine, insert)) return 
+      r.push([index, mine.length].concat(insert)) 
+    })
+    return r
+  }
+  exports.oddOneOut =
+    function oddOneOut (changes) {
+      changes = changes.slice()
+      //put the concestor first
+      changes.unshift(changes.splice(1,1)[0])
+      var i = oddElement(changes, equal)
+      if(i == 0) // concestor was different, 'false conflict'
+        return changes[1]
+      if (~i)
+        return changes[i] 
+    }
+  exports.insertMergeOverDelete = 
+    //i've implemented this as a seperate rule,
+    //because I had second thoughts about this.
+    function insertMergeOverDelete (changes) {
+      changes = changes.slice()
+      changes.splice(1,1)// remove concestor
+      
+      //if there is only one non empty change thats okay.
+      //else full confilct
+      for (var i = 0, nonempty; i < changes.length; i++)
+        if(changes[i].length) 
+          if(!nonempty) nonempty = changes[i]
+          else return // full conflict
+      return nonempty
+    }
+
+  var rules = (deps && deps.rules) || [exports.oddOneOut, exports.insertMergeOverDelete]
+
+  function resolve (changes) {
+    var l = rules.length
+    for (var i in rules) { // first
+      
+      var c = rules[i] && rules[i](changes)
+      if(c) return c
+    }
+    changes.splice(1,1) // remove concestor
+    //returning the conflicts as an object is a really bad idea,
+    // because == will not detect they are the same. and conflicts build.
+    // better to use
+    // '<<<<<<<<<<<<<'
+    // of course, i wrote this before i started on snob, so i didn't know that then.
+    /*var conflict = ['>>>>>>>>>>>>>>>>']
+    while(changes.length)
+      conflict = conflict.concat(changes.shift()).concat('============')
+    conflict.pop()
+    conflict.push          ('<<<<<<<<<<<<<<<')
+    changes.unshift       ('>>>>>>>>>>>>>>>')
+    return conflict*/
+    //nah, better is just to use an equal can handle objects
+    return {'?': changes}
+  }
+  return exports
+}
+exports(null, exports)
+
+},{}],49:[function(require,module,exports){
+var addListener = require("./add-listener.js")
+var setNonEnumerable = require("./lib/set-non-enumerable.js");
+
+module.exports = put
+
+// `obs.put` is a mutable implementation of `array[index] = value`
+// that mutates both `list` and the internal `valueList` that
+// is the current value of `obs` itself
+function put(index, value) {
+    var obs = this
+    var valueList = obs().slice()
+
+    var originalLength = valueList.length
+    valueList[index] = typeof value === "function" ? value() : value
+
+    obs._list[index] = value
+
+    // remove past value listener if was observ
+    var removeListener = obs._removeListeners[index]
+    if (removeListener){
+        removeListener()
+    }
+
+    // add listener to value if observ
+    obs._removeListeners[index] = typeof value === "function" ?
+        addListener(obs, value) :
+        null
+
+    // fake splice diff
+    var valueArgs = index < originalLength ? 
+        [index, 1, valueList[index]] :
+        [index, 0, valueList[index]]
+
+    setNonEnumerable(valueList, "_diff", [valueArgs])
+
+    obs._observSet(valueList)
+    return value
+}
+},{"./add-listener.js":41,"./lib/set-non-enumerable.js":47}],50:[function(require,module,exports){
+var applyPatch = require("./apply-patch.js")
+var setNonEnumerable = require("./lib/set-non-enumerable.js")
+var adiff = require("adiff")
+
+module.exports = set
+
+function set(rawList) {
+    if (!Array.isArray(rawList)) rawList = []
+
+    var obs = this
+    var changes = adiff.diff(obs._list, rawList)
+    var valueList = obs().slice()
+
+    var valueChanges = changes.map(applyPatch.bind(obs, valueList))
+
+    setNonEnumerable(valueList, "_diff", valueChanges)
+
+    obs._observSet(valueList)
+    return changes
+}
+
+},{"./apply-patch.js":42,"./lib/set-non-enumerable.js":47,"adiff":48}],51:[function(require,module,exports){
+var slice = Array.prototype.slice
+
+var addListener = require("./add-listener.js")
+var setNonEnumerable = require("./lib/set-non-enumerable.js");
+
+module.exports = splice
+
+// `obs.splice` is a mutable implementation of `splice()`
+// that mutates both `list` and the internal `valueList` that
+// is the current value of `obs` itself
+function splice(index, amount) {
+    var obs = this
+    var args = slice.call(arguments, 0)
+    var valueList = obs().slice()
+
+    // generate a list of args to mutate the internal
+    // list of only obs
+    var valueArgs = args.map(function (value, index) {
+        if (index === 0 || index === 1) {
+            return value
+        }
+
+        // must unpack observables that we are adding
+        return typeof value === "function" ? value() : value
+    })
+
+    valueList.splice.apply(valueList, valueArgs)
+    // we remove the observs that we remove
+    var removed = obs._list.splice.apply(obs._list, args)
+
+    var extraRemoveListeners = args.slice(2).map(function (observ) {
+        return typeof observ === "function" ?
+            addListener(obs, observ) :
+            null
+    })
+    extraRemoveListeners.unshift(args[0], args[1])
+    var removedListeners = obs._removeListeners.splice
+        .apply(obs._removeListeners, extraRemoveListeners)
+
+    removedListeners.forEach(function (removeObservListener) {
+        if (removeObservListener) {
+            removeObservListener()
+        }
+    })
+
+    setNonEnumerable(valueList, "_diff", [valueArgs])
+
+    obs._observSet(valueList)
+    return removed
+}
+
+},{"./add-listener.js":41,"./lib/set-non-enumerable.js":47}],52:[function(require,module,exports){
+module.exports = transaction
+
+function transaction (func) {
+    var obs = this
+    var rawList = obs._list.slice()
+
+    if (func(rawList) !== false){ // allow cancel
+        return obs.set(rawList)
+    }
+
+}
+},{}],53:[function(require,module,exports){
+var Observ = require("observ")
+var extend = require("xtend")
+
+var blackList = {
+    "length": "Clashes with `Function.prototype.length`.\n",
+    "name": "Clashes with `Function.prototype.name`.\n",
+    "_diff": "_diff is reserved key of observ-struct.\n",
+    "_type": "_type is reserved key of observ-struct.\n",
+    "_version": "_version is reserved key of observ-struct.\n"
+}
+var NO_TRANSACTION = {}
+
+function setNonEnumerable(object, key, value) {
+    Object.defineProperty(object, key, {
+        value: value,
+        writable: true,
+        configurable: true,
+        enumerable: false
+    })
+}
+
+/* ObservStruct := (Object<String, Observ<T>>) =>
+    Object<String, Observ<T>> &
+        Observ<Object<String, T> & {
+            _diff: Object<String, Any>
+        }>
+
+*/
+module.exports = ObservStruct
+
+function ObservStruct(struct) {
+    var keys = Object.keys(struct)
+
+    var initialState = {}
+    var currentTransaction = NO_TRANSACTION
+    var nestedTransaction = NO_TRANSACTION
+
+    keys.forEach(function (key) {
+        if (blackList.hasOwnProperty(key)) {
+            throw new Error("cannot create an observ-struct " +
+                "with a key named '" + key + "'.\n" +
+                blackList[key]);
+        }
+
+        var observ = struct[key]
+        initialState[key] = typeof observ === "function" ?
+            observ() : observ
+    })
+
+    var obs = Observ(initialState)
+    keys.forEach(function (key) {
+        var observ = struct[key]
+        obs[key] = observ
+
+        if (typeof observ === "function") {
+            observ(function (value) {
+                if (nestedTransaction === value) {
+                    return
+                }
+
+                var state = extend(obs())
+                state[key] = value
+                var diff = {}
+                diff[key] = value && value._diff ?
+                    value._diff : value
+
+                setNonEnumerable(state, "_diff", diff)
+                currentTransaction = state
+                obs.set(state)
+                currentTransaction = NO_TRANSACTION
+            })
+        }
+    })
+    var _set = obs.set
+    obs.set = function trackDiff(value) {
+        if (currentTransaction === value) {
+            return _set(value)
+        }
+
+        var newState = extend(value)
+        setNonEnumerable(newState, "_diff", value)
+        _set(newState)
+    }
+
+    obs(function (newState) {
+        if (currentTransaction === newState) {
+            return
+        }
+
+        keys.forEach(function (key) {
+            var observ = struct[key]
+            var newObservValue = newState[key]
+
+            if (typeof observ === "function" &&
+                observ() !== newObservValue
+            ) {
+                nestedTransaction = newObservValue
+                observ.set(newState[key])
+                nestedTransaction = NO_TRANSACTION
+            }
+        })
+    })
+
+    obs._type = "observ-struct"
+    obs._version = "5"
+
+    return obs
+}
+
+},{"observ":57,"xtend":54}],54:[function(require,module,exports){
+module.exports = extend
+
+function extend() {
+    var target = {}
+
+    for (var i = 0; i < arguments.length; i++) {
+        var source = arguments[i]
+
+        for (var key in source) {
+            if (source.hasOwnProperty(key)) {
+                target[key] = source[key]
+            }
+        }
+    }
+
+    return target
+}
+
+},{}],55:[function(require,module,exports){
+var Observ = require('observ')
+var extend = require('xtend')
+
+var NO_TRANSACTION = {}
+
+module.exports = ObservVarhash
+
+function ObservVarhash (hash, createValue) {
+  createValue = createValue || function (obj) { return obj }
+
+  var initialState = {}
+  var currentTransaction = NO_TRANSACTION
+
+  var obs = Observ(initialState)
+  setNonEnumerable(obs, '_removeListeners', {})
+
+  setNonEnumerable(obs, 'set', obs.set)
+  setNonEnumerable(obs, 'get', get.bind(obs))
+  setNonEnumerable(obs, 'put', put.bind(obs, createValue, currentTransaction))
+  setNonEnumerable(obs, 'delete', del.bind(obs))
+
+  for (var key in hash) {
+    obs[key] = typeof hash[key] === 'function' ?
+      hash[key] : createValue(hash[key], key)
+
+    if (isFn(obs[key])) {
+      obs._removeListeners[key] = obs[key](watch(obs, key, currentTransaction))
+    }
+  }
+
+  var newState = {}
+  for (key in hash) {
+    var observ = obs[key]
+    checkKey(key)
+    newState[key] = isFn(observ) ? observ() : observ
+  }
+  obs.set(newState)
+
+  obs(function (newState) {
+    if (currentTransaction === newState) {
+      return
+    }
+
+    for (var key in hash) {
+      var observ = hash[key]
+
+      if (isFn(observ) && observ() !== newState[key]) {
+        observ.set(newState[key])
+      }
+    }
+  })
+
+  return obs
+}
+
+// access and mutate
+function get (key) {
+  return this[key]
+}
+
+function put (createValue, currentTransaction, key, val) {
+  checkKey(key)
+
+  if (val === undefined) {
+    throw new Error('cannot varhash.put(key, undefined).')
+  }
+
+  var observ = typeof val === 'function' ?
+    val : createValue(val, key)
+  var state = extend(this())
+
+  state[key] = isFn(observ) ? observ() : observ
+
+  if (isFn(this._removeListeners[key])) {
+    this._removeListeners[key]()
+  }
+
+  this._removeListeners[key] = isFn(observ) ?
+    observ(watch(this, key, currentTransaction)) : null
+
+  setNonEnumerable(state, '_diff', diff(key, state[key]))
+
+  this[key] = observ
+  this.set(state)
+
+  return this
+}
+
+function del (key) {
+  var state = extend(this())
+  if (isFn(this._removeListeners[key])) {
+    this._removeListeners[key]()
+  }
+
+  delete this._removeListeners[key]
+  delete state[key]
+  delete this[key]
+
+  setNonEnumerable(state, '_diff', diff(key, undefined))
+  this.set(state)
+
+  return this
+}
+
+// processing
+function watch (obs, key, currentTransaction) {
+  return function (value) {
+    var state = extend(obs())
+    state[key] = value
+
+    setNonEnumerable(state, '_diff', diff(key, value))
+    currentTransaction = state
+    obs.set(state)
+    currentTransaction = NO_TRANSACTION
+  }
+}
+
+function diff (key, value) {
+  var obj = {}
+  obj[key] = value && value._diff ? value._diff : value
+  return obj
+}
+
+function isFn (obj) {
+  return typeof obj === 'function'
+}
+
+function setNonEnumerable(object, key, value) {
+  Object.defineProperty(object, key, {
+    value: value,
+    writable: true,
+    configurable: true,
+    enumerable: false
+  })
+}
+
+// errors
+var blacklist = {
+  name: 'Clashes with `Function.prototype.name`.',
+  get: 'get is a reserved key of observ-varhash method',
+  put: 'put is a reserved key of observ-varhash method',
+  'delete': 'delete is a reserved key of observ-varhash method',
+  _diff: '_diff is a reserved key of observ-varhash method',
+  _removeListeners: '_removeListeners is a reserved key of observ-varhash'
+}
+
+function checkKey (key) {
+  if (!blacklist[key]) return
+  throw new Error(
+    'cannot create an observ-varhash with key `' + key + '`. ' + blacklist[key]
+  )
+}
+
+},{"observ":57,"xtend":56}],56:[function(require,module,exports){
+arguments[4][54][0].apply(exports,arguments)
+},{"dup":54}],57:[function(require,module,exports){
+module.exports = Observable
+
+function Observable(value) {
+    var listeners = []
+    value = value === undefined ? null : value
+
+    observable.set = function (v) {
+        value = v
+        listeners.forEach(function (f) {
+            f(v)
+        })
+    }
+
+    return observable
+
+    function observable(listener) {
+        if (!listener) {
+            return value
+        }
+
+        listeners.push(listener)
+
+        return function remove() {
+            listeners.splice(listeners.indexOf(listener), 1)
+        }
+    }
+}
+
+},{}],58:[function(require,module,exports){
 "use strict";
 var window = require("global/window")
 var once = require("once")
@@ -3390,10 +3388,11 @@ function createXHR(options, callback) {
         // IE must die
     }
     xhr.ontimeout = errorFunc
-    xhr.open(method, uri, !sync)
+    xhr.open(method, uri, !sync, options.username, options.password)
     //has to be after open
-    xhr.withCredentials = !!options.withCredentials
-    
+    if(!sync) {
+        xhr.withCredentials = !!options.withCredentials
+    }
     // Cannot set timeout with sync request
     // not setting timeout on the xhr object, because of old webkits etc. not handling that correctly
     // both npm's request and jquery 1.x use this kind of timeout, so this is being consistent
@@ -3433,7 +3432,7 @@ function createXHR(options, callback) {
 
 function noop() {}
 
-},{"global/window":60,"once":61,"parse-headers":65}],60:[function(require,module,exports){
+},{"global/window":59,"once":60,"parse-headers":64}],59:[function(require,module,exports){
 (function (global){
 if (typeof window !== "undefined") {
     module.exports = window;
@@ -3446,7 +3445,7 @@ if (typeof window !== "undefined") {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],61:[function(require,module,exports){
+},{}],60:[function(require,module,exports){
 module.exports = once
 
 once.proto = once(function () {
@@ -3467,7 +3466,7 @@ function once (fn) {
   }
 }
 
-},{}],62:[function(require,module,exports){
+},{}],61:[function(require,module,exports){
 var isFunction = require('is-function')
 
 module.exports = forEach
@@ -3515,7 +3514,7 @@ function forEachObject(object, iterator, context) {
     }
 }
 
-},{"is-function":63}],63:[function(require,module,exports){
+},{"is-function":62}],62:[function(require,module,exports){
 module.exports = isFunction
 
 var toString = Object.prototype.toString
@@ -3532,7 +3531,7 @@ function isFunction (fn) {
       fn === window.prompt))
 };
 
-},{}],64:[function(require,module,exports){
+},{}],63:[function(require,module,exports){
 
 exports = module.exports = trim;
 
@@ -3548,7 +3547,7 @@ exports.right = function(str){
   return str.replace(/\s*$/, '');
 };
 
-},{}],65:[function(require,module,exports){
+},{}],64:[function(require,module,exports){
 var trim = require('trim')
   , forEach = require('for-each')
   , isArray = function(arg) {
@@ -3580,4 +3579,4 @@ module.exports = function (headers) {
 
   return result
 }
-},{"for-each":62,"trim":64}]},{},[1]);
+},{"for-each":61,"trim":63}]},{},[34]);

@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "server": "node index.js",
+    "start": "node index.js",
+    "build": "browserify assets/js/app-one/todo-app.js -o assets/public/bundle_one.js",
     "w-index": "watchify assets/js/index.js -o assets/public/bundle_index.js -v",
     "w-one": "watchify assets/js/app-one/todo-app.js -o assets/public/bundle_one.js -v",
     "w-two": "watchify assets/js/app_two.js -o assets/public/bundle_two.js -v",
@@ -19,12 +20,14 @@
     "watchify": "^3.2.2"
   },
   "dependencies": {
+    "browserify": "^10.2.4",
     "cuid": "^1.2.5",
     "handlebars": "^3.0.3",
     "hapi": "^8.6.1",
     "next-tick": "^0.2.2",
     "observ": "^0.2.0",
     "observ-array": "^3.2.1",
+    "observ-struct": "^6.0.0",
     "observ-varhash": "^1.0.6",
     "xhr": "^2.0.1"
   }
