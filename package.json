@@ -11,7 +11,8 @@
     "w-two": "watchify assets/js/app_two.js -o assets/public/bundle_two.js -v",
     "phantom": "phantomjs test/phantom/test.js",
     "jsdom": "nodemon test/jsdom/test.js",
-    "qUnit": "http-server test/qUnit/test.html"
+    "qUnit": "http-server test/qUnit/test.html",
+    "protractor": "protractor test/protractor/config.js"
   },
   "author": "",
   "license": "ISC",
