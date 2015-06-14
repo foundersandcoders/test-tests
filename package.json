@@ -4,12 +4,28 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "w-one": "watchify app/app_one.js -o app/bundle_one.js -v",
-    "w-two": "watchify app/app_two.js -o app/bundle_two.js -v"
+    "server": "node index.js",
+    "w-index": "watchify assets/js/index.js -o assets/public/bundle_index.js -v",
+    "w-one": "watchify assets/js/app-one/todo-app.js -o assets/public/bundle_one.js -v",
+    "w-two": "watchify assets/js/app_two.js -o assets/public/bundle_two.js -v",
+    "phantom": "phantomjs phantom/test.js",
+    "jsdom": "nodemon test/jsdom/test.js",
+    "qUnit": "http-server test/qUnit/test.html"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "tape": "^4.0.0",
     "watchify": "^3.2.2"
+  },
+  "dependencies": {
+    "cuid": "^1.2.5",
+    "handlebars": "^3.0.3",
+    "hapi": "^8.6.1",
+    "next-tick": "^0.2.2",
+    "observ": "^0.2.0",
+    "observ-array": "^3.2.1",
+    "observ-varhash": "^1.0.6",
+    "xhr": "^2.0.1"
   }
 }

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Method chaining!</title>
+		<script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+		<link rel="stylesheet" href="https://code.jquery.com/qunit/qunit-1.18.0.css">
+		<style type="text/css">
+
+			body, html, p, h1, h2, h3, h4, h5, h6, h7, h8, input, button, div, a {
+				font-family: 'Sorts Mill Goudy', serif;
+			}
+
+			a {
+				text-align: center;
+				text-decoration: none;
+				color: #ccc;
+				display: block;
+			}
+
+			h1 {
+				text-align: center;
+			}
+
+			h4 {
+				display: inline;
+			}
+
+			ul, li {
+				list-style-type: none;
+				padding: 0px;
+			}
+
+			button.destroy {
+				float: right;
+				display: inline;
+				margin: 0px;
+			}
+
+			p.item {
+				display: inline;
+				margin-left: 15px;
+			}
+
+			input.task {
+				max-width: 200px;
+				width: 100%;
+			}
+
+			.container {
+				max-width: 200px;
+				margin: auto;
+			}
+
+			.header {
+
+			}
+		</style>
+	</head>
+	<body>
+		<div id="qunit"></div>
+		<div id="qunit-fixture"></div>
+		<script src="https://code.jquery.com/qunit/qunit-1.18.0.js"></script>
+
+		<script src="./public/bundle_one.js"></script>
+		<script> // your tests go here
+			test("Create a task", function (assert) {
+				var result   = person().setName('Amy').setAge(27);
+				assert.equal(result.name, 'Amy', "person's name is Amy");
+				assert.equal(result.age, 27, "Amy is 27");
+			});
+		</script>
+	</body>
+</html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Method chaining!</title>
+		<script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+		<link rel="stylesheet" href="https://code.jquery.com/qunit/qunit-1.18.0.css">
+		<style type="text/css">
+
+			body, html, p, h1, h2, h3, h4, h5, h6, h7, h8, input, button, div, a {
+				font-family: 'Sorts Mill Goudy', serif;
+			}
+
+			a {
+				text-align: center;
+				text-decoration: none;
+				color: #ccc;
+				display: block;
+			}
+
+			h1 {
+				text-align: center;
+			}
+
+			h4 {
+				display: inline;
+			}
+
+			ul, li {
+				list-style-type: none;
+				padding: 0px;
+			}
+
+			button.destroy {
+				float: right;
+				display: inline;
+				margin: 0px;
+			}
+
+			p.item {
+				display: inline;
+				margin-left: 15px;
+			}
+
+			input.task {
+				max-width: 200px;
+				width: 100%;
+			}
+
+			.container {
+				max-width: 200px;
+				margin: auto;
+			}
+
+			.header {
+
+			}
+		</style>
+	</head>
+	<body>
+		<div id="qunit"></div>
+		<div id="qunit-fixture"></div>
+		<script src="https://code.jquery.com/qunit/qunit-1.18.0.js"></script>
+
+		<script></script>
+		<script> // your tests go here
+			// ==========================================================================
+			// CRUD tests
+			// ==========================================================================
+				test("Create a task", function (t) {
+
+					$("input.task").val("Hello");
+					var e = $.Event("keypress");
+					e.keyCode = 13;
+					$("input.task").trigger(e);
+
+					t.equals($("p.item").text(), "Hello", "task create");
+					t.equals($("input.task").val(), "", "input cleared");
+					t.end();
+				});
+				test("Edit a task", function (t) {
+
+					$("p.item").dblclick();
+					$("input[name='title']").val("Goodbye");
+					var e = $.Event("keypress");
+					e.keyCode = 13;
+					$("input[name='title']").trigger(e);
+
+					t.equals($("p.item").text(), "Goodbye", "task create");
+					t.end();
+				});
+				test("Delte a task", function (t) {
+
+					$("button.destroy").click();
+					t.equals($("p.item").text(), "", "task deleted");
+					t.end();
+				});
+			// ==========================================================================
+			// Routing
+			// ==========================================================================
+				test("Create two tasks", function (t) {
+
+					var tasks = [
+						{title: "Task one"},
+						{title: "Task two"}
+					];
+
+					tasks.forEach(function (elm) {
+
+						$("input.task").val(elm.title);
+						var e = $.Event("keypress");
+						e.keyCode = 13;
+						$("input.task").trigger(e);
+					});
+
+					$("p.item").each(function (i) {
+
+						t.equals($(this).text(), tasks[i].title, "task created");
+					});
+
+					t.end();
+				});
+				test("View only active tasks", function (t) {
+
+					$("#active").click();
+
+					t.equals(window.location.hash, "#active", "active route");
+					t.equals($("p.item").text(), "Task oneTask two", "active task");
+					t.end();
+				});
+				test("View only completed tasks", function (t) {
+
+					$("#completed").click();
+
+					t.equals(window.location.hash, "#completed", "completed route");
+					t.equals($("p.item").text(), "", "completed task");
+					t.end();
+				});
+			// ==========================================================================
+		</script>
+	</body>
+</html>
