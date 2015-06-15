@@ -8,9 +8,13 @@ jsdom.env({
 		"http://code.jquery.com/jquery.js", 
 		"http://localhost:2000/public/bundle_one.js"
 	],
-	done: function (errors, window) {
+	done: function (err1, window1) {
 
-		var $ = window.$;
+		if(err1) {
+			console.log("Errors: ", err2);
+		}
+
+		var $ = window1.$;
 
 
 		// ==========================================================================
@@ -65,7 +69,7 @@ jsdom.env({
 
 				$("#active").click();
 
-				t.equals(window.location.hash, "#active", "active route");
+				t.equals(window1.location.hash, "#active", "active route");
 				t.equals($("p.item").text(), "Task one", "active task");
 				t.end();
 			});
@@ -73,16 +77,33 @@ jsdom.env({
 
 				$("#completed").click();
 
-				t.equals(window.location.hash, "#completed", "completed route");
+				t.equals(window1.location.hash, "#completed", "completed route");
 
 	
 				process.nextTick(function () {
 
 					t.equals($("p.item").text(), "", "completed task");
-					console.log("bleurg", $("h6").text());
 					t.end();
 				});
 			});
 		// ==========================================================================
+		// Change page
+		// ==========================================================================
+			test("Should check if link points to right page", function (t) {
+
+				t.equals($("a").text(), "Home", "right text");
+				t.equals($("a").attr("href"), "/", "right link");
+				t.end();
+			});
+
+			jsdom.jsdom({
+				url: "http://localhost:2000",
+				done: function (err2, window2) {
+
+					// do stuff here
+				}
+			});
+		// ==========================================================================
+
 	}
 });

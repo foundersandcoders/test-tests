@@ -1698,7 +1698,7 @@ TodoApp.render = function (state) {
 	return (
 		h("div", [
 			h("a", {
-				href: "/home",
+				href: "/",
 			}, "Home"),
 			h("h1", "Time"),
 			h("div.container", [
