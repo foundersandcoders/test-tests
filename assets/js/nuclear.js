@@ -33,10 +33,11 @@ function router (state) {
 		return path.split('/');
 	}
 
-	win.onhashchange = function (evt) {
-		console.log(hash());
+
+	window.addEventListener("hashchange", function () {
+
 		state.route.set(hash());
-	}
+	});
 
 	function route (path, handler) {
 	

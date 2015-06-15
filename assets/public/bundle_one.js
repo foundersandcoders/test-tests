@@ -1647,11 +1647,14 @@ var nuclear  = require("../nuclear.js");
 var TodoItem = require("./todo-item.js");
 var utils    = require("./utils");
 
+
+var route;
+
 function TodoApp (opts) {
 
 	opts = opts || {};
 
-	return nuclear.observS({
+	var state = nuclear.observS({
 		route: nuclear.observ(""),
 		todos: nuclear.observV(opts.todos || {}, TodoItem),
 		field: nuclear.observ(""),
@@ -1659,7 +1662,11 @@ function TodoApp (opts) {
 			add: add,
 			destroy: destroy
 		}
-	})
+	});
+
+	route = nuclear.router(state);
+
+	return state;
 }
 
 function add (state) {
@@ -1687,7 +1694,6 @@ TodoApp.render = function (state) {
 
 	var h = nuclear.h;
 
-	var route = nuclear.router(state);
 
 	return (
 		h("div", [
@@ -1978,10 +1984,11 @@ function router (state) {
 		return path.split('/');
 	}
 
-	win.onhashchange = function (evt) {
-		console.log(hash());
+
+	window.addEventListener("hashchange", function () {
+
 		state.route.set(hash());
-	}
+	});
 
 	function route (path, handler) {
 	

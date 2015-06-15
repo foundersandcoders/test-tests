@@ -74,8 +74,14 @@ jsdom.env({
 				$("#completed").click();
 
 				t.equals(window.location.hash, "#completed", "completed route");
-				t.equals($("p.item").text(), "", "completed task");
-				t.end();
+
+	
+				process.nextTick(function () {
+
+					t.equals($("p.item").text(), "", "completed task");
+					console.log("bleurg", $("h6").text());
+					t.end();
+				});
 			});
 		// ==========================================================================
 	}
